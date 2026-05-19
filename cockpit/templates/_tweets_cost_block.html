@@ -13,6 +13,12 @@
   <div class="metric tight">
     <div class="label">Copywriting ({{ cost.chunks }} chunks)</div>
     <div class="value" style="font-size:20px;">${{ "%.3f"|format(cost.copy_total_usd) }}</div>
+    {% if cost.retry_margin_pct and cost.retry_margin_pct > 0 %}
+    <div class="text-xs muted" style="margin-top:4px; font-size:11px;"
+         title="Marge automatique pour couvrir les retries déclenchés quand Gemini Pro Preview renvoie un chunk vide (observé ~1 chunk sur 3 sur ce modèle). Le coût réel peut être inférieur si tous les chunks passent au 1er essai.">
+      dont +{{ cost.retry_margin_pct }}% marge retry (≈ ${{ "%.3f"|format(cost.retry_overhead_usd) }})
+    </div>
+    {% endif %}
   </div>
   <div class="metric tight" style="background:rgba(139,45,74,0.06); border-color:rgba(139,45,74,0.25);">
     <div class="label">Total estimé</div>

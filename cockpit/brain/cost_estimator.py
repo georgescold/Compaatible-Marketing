@@ -42,6 +42,26 @@ VISION_USER_PER_IMG  = 80
 VISION_OUTPUT_PER_IMG = 600
 
 
+# Marge "retry empty-chunk" appliquee a l'estimation copywriting/extension pour
+# les modeles Gemini thinking-Pro. Empirique (runs #45 et #46) : ~33% des
+# chunks copywriting reviennent vides sur Pro Preview et declenchent un retry
+# (cf. copywriter._process_chunk). Le retry consomme ~70% du cout d'un chunk
+# normal (cache hit, output fresh seulement). Marge globale : 0.33 * 0.70 = 23%
+# arrondi a 20% pour rester conservateur sans gonfler artificiellement.
+# Anthropic et les modeles non-thinking (Flash/Flash-Lite) ont 0% de marge.
+_RETRY_MARGIN_BY_MODEL: dict[str, float] = {
+    "gemini-3.1-pro-preview": 0.20,
+    "gemini-3-pro":           0.20,
+    "gemini-3.1-pro":         0.20,
+}
+
+
+def _retry_margin(model: str) -> float:
+    """Marge multiplicative a appliquer au cout copywriting pour couvrir les
+    retries auto sur chunks vides. 0 = pas de retry attendu."""
+    return _RETRY_MARGIN_BY_MODEL.get(model, 0.0)
+
+
 def estimate_pipeline_cost(
     model_adaptation: str,
     n_tweets: int,
@@ -82,7 +102,13 @@ def estimate_pipeline_cost(
         cache_write=0,
         output_tokens=OUTPUT_PER_CHUNK,
     )
-    copy_total = first_cost + max(0, chunks - 1) * later_cost
+    copy_total_nominal = first_cost + max(0, chunks - 1) * later_cost
+    # Marge retry pour les modeles Gemini thinking-Pro (cf. _retry_margin).
+    # Appliquee uniquement sur le copywriting/extension : analyze et persona
+    # n'ont pas de retry-on-empty (1-shot, parse OK suffit).
+    retry_margin = _retry_margin(model_adaptation)
+    retry_overhead = round(copy_total_nominal * retry_margin, 4)
+    copy_total = copy_total_nominal + retry_overhead
 
     breakdown = {
         "mode": mode,
@@ -94,6 +120,9 @@ def estimate_pipeline_cost(
         "persona_usd": 0.0,
         "copy_first_chunk_usd": round(first_cost, 4),
         "copy_subsequent_chunk_usd": round(later_cost, 4),
+        "copy_total_nominal_usd": round(copy_total_nominal, 4),
+        "retry_margin_pct": round(retry_margin * 100, 1),
+        "retry_overhead_usd": retry_overhead,
         "copy_total_usd": round(copy_total, 4),
     }
 
