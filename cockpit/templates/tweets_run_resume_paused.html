@@ -48,9 +48,9 @@
     <div class="field">
       <label class="field-label">Copywriting (adaptation)</label>
       <select name="model_adaptation" id="model_adaptation" class="select">
-        {% for m in available_models %}{% if not m.vision_only %}
+        {% for m in available_models %}
         <option value="{{ m.id }}" {% if m.id == default_adaptation %}selected{% endif %}>{{ m.label }}</option>
-        {% endif %}{% endfor %}
+        {% endfor %}
       </select>
       <p class="field-help">Par défaut : modèle d'origine du run. Tu peux basculer pour les chunks restants.</p>
     </div>
