@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+{% block title %}Run #{{ run.id }} en cours · Cockpit{% endblock %}
+{% block crumb %}Tweets · Run #{{ run.id }} · En cours{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <a href="{{ url_for('tweets.index') }}" class="text-xs muted" style="display:inline-block; margin-bottom:8px;">← Tous les runs</a>
+    <span class="eyebrow"><span class="live-dot"></span> Pipeline en cours · run #{{ run.id }}</span>
+    <h1>Le pipeline tourne</h1>
+    <p class="sub">
+      Source : <span class="ink" style="font-weight:500;">{{ run.source_csv_name }}</span>
+      {% if run.source_handle %} · <span class="mono">@{{ run.source_handle }}</span>{% endif %}
+      · <span class="mono" id="elapsed">0s</span>
+    </p>
+  </div>
+  <div class="row gap-sm" style="align-items:center;">
+    <button id="pause-btn" type="button" class="btn ghost sm"
+            onclick="requestPause()" style="display:none;">
+      ⏸ Mettre en pause
+    </button>
+    <span id="pause-pending" class="text-xs muted mono" style="display:none;">
+      Pause demandée · sortie au prochain chunk…
+    </span>
+  </div>
+</header>
+
+<div class="grid" style="grid-template-columns: 1fr 1fr; gap: 32px;">
+
+  {# ─── Colonne gauche : les étapes ─── #}
+  <div>
+    <div class="section-row">
+      <h2 class="section-title">Étapes du pipeline</h2>
+      <span class="section-meta" id="status-meta">Initialisation…</span>
+    </div>
+
+    <ol class="stages">
+      {% for s in stages %}
+        <li class="stage" data-stage-key="{{ s.key }}">
+          <div class="stage-marker">
+            <span class="stage-icon"></span>
+            {% if not loop.last %}<span class="stage-line"></span>{% endif %}
+          </div>
+          <div class="stage-body">
+            <div class="stage-head">
+              <div class="stage-label">{{ s.label }}</div>
+              <div class="stage-duration mono"></div>
+            </div>
+            <div class="stage-desc">{{ s.desc }}</div>
+            <div class="stage-msg italic-serif"></div>
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+
+  {# ─── Colonne droite : log tail + meta ─── #}
+  <div>
+    <div class="section-row">
+      <h2 class="section-title">Journal en direct</h2>
+      <span class="section-meta">Mise à jour toutes les 2s</span>
+    </div>
+
+    <div class="card flush" style="overflow:hidden;">
+      <div id="log-pane" class="log-pane">
+        <div class="log-empty">En attente du premier événement…</div>
+      </div>
+    </div>
+
+    <div class="card tight mt-md" style="font-size: 12.5px; line-height: 1.7;">
+      <div class="field-label mb-sm">Pourquoi ça prend du temps ?</div>
+      <div class="muted">
+        Le premier appel API injecte ~40k tokens de contexte (Master KB + fichier avatars complet + brief produit). Il n'y a pas encore de cache, donc Anthropic doit tout traiter. Compte 1 à 3 minutes pour l'analyse.<br><br>
+        Les appels suivants (persona, puis copywriting) retrouvent ce contexte en cache et sont 10× moins chers, ~30 % plus rapides.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+  .live-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--burgundy);
+    margin-right: 8px;
+    animation: pulse 1.6s ease-in-out infinite;
+    vertical-align: middle;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .stages { list-style: none; padding: 0; margin: 0; }
+  .stage {
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 14px;
+    padding-bottom: 24px;
+  }
+  .stage:last-child { padding-bottom: 0; }
+
+  .stage-marker { position: relative; display: flex; flex-direction: column; align-items: center; }
+  .stage-icon {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--hairline-strong);
+    background: var(--paper);
+    flex-shrink: 0;
+    z-index: 1;
+    transition: all 240ms var(--ease-out);
+  }
+  .stage-line {
+    flex: 1;
+    width: 2px;
+    background: var(--hairline);
+    margin-top: 2px;
+    min-height: 28px;
+  }
+
+  /* Pending = défaut */
+  .stage.is-pending .stage-icon { background: var(--paper); border-color: var(--hairline-strong); }
+  .stage.is-pending .stage-label { color: var(--muted); }
+  .stage.is-pending .stage-desc { color: var(--muted-soft); }
+
+  /* Running = pulse burgundy */
+  .stage.is-running .stage-icon {
+    background: var(--burgundy);
+    border-color: var(--burgundy);
+    box-shadow: 0 0 0 4px var(--burgundy-soft);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .stage.is-running .stage-label { color: var(--burgundy); font-weight: 500; }
+  .stage.is-running .stage-desc { color: var(--ink-soft); }
+  .stage.is-running .stage-msg { display: block; color: var(--burgundy); font-size: 14px; margin-top: 6px; }
+
+  /* Done = check vert */
+  .stage.is-done .stage-icon {
+    background: var(--success);
+    border-color: var(--success);
+  }
+  .stage.is-done .stage-icon::after {
+    content: '';
+    position: absolute;
+    width: 8px; height: 4px;
+    border-left: 2px solid #fff;
+    border-bottom: 2px solid #fff;
+    transform: translate(6px, 5px) rotate(-45deg);
+  }
+  .stage.is-done .stage-label { color: var(--ink); }
+  .stage.is-done .stage-line { background: var(--success); }
+
+  /* Failed = croix rouge */
+  .stage.is-failed .stage-icon {
+    background: var(--error);
+    border-color: var(--error);
+  }
+  .stage.is-failed .stage-icon::after {
+    content: '×';
+    position: absolute;
+    color: #fff;
+    font-size: 16px;
+    line-height: 1;
+    transform: translate(5px, 1px);
+  }
+  .stage.is-failed .stage-label { color: var(--error); font-weight: 500; }
+
+  .stage-icon { position: relative; }
+
+  .stage-body { padding-top: -2px; }
+  .stage-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .stage-label {
+    font-family: 'Playfair Display', serif;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+  }
+  .stage-duration {
+    font-size: 11.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .stage-desc {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.55;
+  }
+  .stage-msg {
+    display: none;
+    margin-top: 6px;
+    line-height: 1.45;
+  }
+
+  .log-pane {
+    height: 360px;
+    overflow-y: auto;
+    padding: 18px 22px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--ink-soft);
+    background: var(--cream);
+    border-radius: var(--radius-lg);
+  }
+  .log-pane .log-empty {
+    color: var(--muted-soft);
+    text-align: center;
+    padding: 32px 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+  }
+  .log-line {
+    padding: 4px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .log-line:last-child { border-bottom: 0; }
+  .log-line .log-ts { color: var(--muted-soft); margin-right: 8px; }
+  .log-line .log-stage {
+    display: inline-block;
+    min-width: 60px;
+    color: var(--burgundy);
+    font-weight: 500;
+    margin-right: 8px;
+  }
+</style>
+
+<script>
+  const RUN_ID = {{ run.id }};
+  const STATUS_URL = `/tweets/runs/${RUN_ID}/status`;
+  const POLL_INTERVAL_MS = 2000;
+
+  function fmtDuration(s) {
+    if (s == null) return '';
+    if (s < 60) return s.toFixed(1) + 's';
+    const m = Math.floor(s / 60);
+    const ss = Math.floor(s % 60);
+    return `${m}m ${ss}s`;
+  }
+
+  function renderStages(state) {
+    document.getElementById('elapsed').textContent = fmtDuration(state.elapsed_s);
+
+    let currentLabel = '';
+    const stagesDef = state.stages_def || [];
+    stagesDef.forEach(def => {
+      const el = document.querySelector(`.stage[data-stage-key="${def.key}"]`);
+      if (!el) return;
+      const sData = (state.stages || {})[def.key] || {};
+      el.classList.remove('is-pending', 'is-running', 'is-done', 'is-failed');
+      el.classList.add(`is-${sData.status || 'pending'}`);
+
+      const durEl = el.querySelector('.stage-duration');
+      durEl.textContent = sData.duration_s != null ? fmtDuration(sData.duration_s) : '';
+
+      const msgEl = el.querySelector('.stage-msg');
+      if (sData.status === 'running' && sData.message) {
+        msgEl.textContent = sData.message;
+        currentLabel = def.label;
+      } else if (sData.status === 'failed' && sData.message) {
+        msgEl.textContent = sData.message;
+        msgEl.style.display = 'block';
+        msgEl.style.color = 'var(--error)';
+      } else {
+        msgEl.textContent = '';
+      }
+    });
+
+    // Status badge
+    const meta = document.getElementById('status-meta');
+    if (state.status === 'completed') meta.textContent = 'Terminé · redirection…';
+    else if (state.status === 'completed_partial') meta.textContent = 'Interrompu (quota API) · redirection…';
+    else if (state.status === 'failed') meta.textContent = 'Échec · voir le journal';
+    else if (state.status === 'paused') meta.textContent = 'En pause · reprise depuis la page run';
+    else if (currentLabel) meta.textContent = `En cours · ${currentLabel}`;
+    else meta.textContent = 'En attente…';
+
+    // Bouton pause : visible uniquement pendant le stage copy en running
+    const pauseBtn = document.getElementById('pause-btn');
+    const pausePending = document.getElementById('pause-pending');
+    const copyStage = (state.stages || {}).copy;
+    const inCopy = copyStage && copyStage.status === 'running';
+    if (state.status === 'running' && inCopy && !state.pause_requested) {
+      pauseBtn.style.display = 'inline-flex';
+      pausePending.style.display = 'none';
+    } else if (state.pause_requested && state.status === 'running') {
+      pauseBtn.style.display = 'none';
+      pausePending.style.display = 'inline-block';
+    } else {
+      pauseBtn.style.display = 'none';
+      pausePending.style.display = 'none';
+    }
+  }
+
+  async function requestPause(){
+    const btn = document.getElementById('pause-btn');
+    btn.disabled = true;
+    btn.textContent = '⏸ Pause demandée…';
+    try {
+      const res = await fetch(`/tweets/runs/${RUN_ID}/pause`, {method: 'POST'});
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'erreur');
+      // L'UI sera mise à jour au prochain poll (pause_requested=true)
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = '⏸ Mettre en pause';
+      alert('Pause refusée : ' + e.message);
+    }
+  }
+
+  function renderLog(state) {
+    const pane = document.getElementById('log-pane');
+    const lines = state.log_tail || [];
+    if (!lines.length) return;
+    pane.innerHTML = '';
+    lines.forEach(l => {
+      const ts = new Date(l.ts * 1000);
+      const hh = String(ts.getHours()).padStart(2, '0');
+      const mm = String(ts.getMinutes()).padStart(2, '0');
+      const ss = String(ts.getSeconds()).padStart(2, '0');
+      const div = document.createElement('div');
+      div.className = 'log-line';
+      div.innerHTML = `<span class="log-ts">${hh}:${mm}:${ss}</span><span class="log-stage">${l.stage || '?'}</span>${escapeHtml(l.text || '')}`;
+      pane.appendChild(div);
+    });
+    pane.scrollTop = pane.scrollHeight;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  let consecutiveErrors = 0;
+  const MAX_BACKOFF_MS = 15000;
+
+  function nextDelayMs() {
+    // backoff exponentiel plafonné à 15s
+    return Math.min(POLL_INTERVAL_MS * Math.pow(2, consecutiveErrors), MAX_BACKOFF_MS);
+  }
+
+  async function poll() {
+    try {
+      const res = await fetch(STATUS_URL, { cache: 'no-store' });
+
+      if (res.status === 404) {
+        // Run inconnu : pas la peine de continuer.
+        document.getElementById('status-meta').textContent = 'Run introuvable';
+        return;
+      }
+      if (!res.ok) {
+        consecutiveErrors++;
+        setTimeout(poll, nextDelayMs());
+        return;
+      }
+      consecutiveErrors = 0;
+
+      const state = await res.json();
+      renderStages(state);
+      renderLog(state);
+
+      if (state.from_db_fallback) {
+        // L'état mémoire a été perdu (serveur restart). On poll quand même pour détecter une fin.
+        document.getElementById('status-meta').textContent = 'État mémoire perdu · suivi depuis DB';
+      }
+
+      if (state.status === 'completed' || state.status === 'completed_partial') {
+        // Petit délai pour que l'utilisateur voie les checkmarks verts (ou le bandeau partial)
+        setTimeout(() => window.location.reload(), 800);
+        return;
+      }
+      if (state.status === 'failed') {
+        // Recharger pour afficher la page tweets_run.html avec le bandeau d'erreur DB
+        setTimeout(() => window.location.reload(), 1500);
+        document.querySelector('.live-dot').style.background = 'var(--error)';
+        document.querySelector('.live-dot').style.animation = 'none';
+        return;
+      }
+      if (state.status === 'paused') {
+        // Recharger pour afficher la page tweets_run.html avec le bandeau de reprise
+        setTimeout(() => window.location.reload(), 800);
+        return;
+      }
+      setTimeout(poll, POLL_INTERVAL_MS);
+    } catch (e) {
+      console.error('Polling failed', e);
+      consecutiveErrors++;
+      setTimeout(poll, nextDelayMs());
+    }
+  }
+
+  // Démarrage immédiat puis polling
+  poll();
+</script>
+
+{% endblock %}

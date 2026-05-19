@@ -1,0 +1,27 @@
+{# Partial : rendu initial du bloc coût (mode=fresh, dropdowns par défaut).
+   Le JS du preflight remplace ce bloc dynamiquement quand l'utilisateur change un modèle. #}
+{% if cost.pricing_available %}
+<div class="grid grid-4 mb-md">
+  <div class="metric tight">
+    <div class="label">Analyse</div>
+    <div class="value" style="font-size:20px;">${{ "%.3f"|format(cost.analyze_usd) }}</div>
+  </div>
+  <div class="metric tight">
+    <div class="label">Persona</div>
+    <div class="value" style="font-size:20px;">${{ "%.3f"|format(cost.persona_usd) }}</div>
+  </div>
+  <div class="metric tight">
+    <div class="label">Copywriting ({{ cost.chunks }} chunks)</div>
+    <div class="value" style="font-size:20px;">${{ "%.3f"|format(cost.copy_total_usd) }}</div>
+  </div>
+  <div class="metric tight" style="background:rgba(139,45,74,0.06); border-color:rgba(139,45,74,0.25);">
+    <div class="label">Total estimé</div>
+    <div class="value" style="font-size:24px;">${{ "%.2f"|format(cost.total_usd) }}</div>
+  </div>
+</div>
+{% else %}
+<div class="alert warn">
+  <span class="dot warn"></span>
+  <span>Pricing inconnu pour un des modèles sélectionnés. Lance le run, le coût réel sera affiché à la fin.</span>
+</div>
+{% endif %}

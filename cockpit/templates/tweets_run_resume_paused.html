@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Reprendre run #{{ run.id }} · Cockpit{% endblock %}
+{% block crumb %}Tweets · Run #{{ run.id }} · Reprise{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <a href="{{ url_for('tweets.show_run', run_id=run.id) }}" class="text-xs muted"
+       style="display:inline-block; margin-bottom:8px; text-decoration:none;">← Retour au run #{{ run.id }}</a>
+    <h1>Reprendre le run</h1>
+    <p class="sub">
+      Persona <span class="ink" style="font-weight:500;">{{ run.persona_first_name or '?' }}</span>
+      · run <span class="mono">#{{ run.id }}</span> en pause
+    </p>
+  </div>
+</header>
+
+<form method="post" action="{{ url_for('tweets.resume_paused_launch', run_id=run.id) }}" class="stack stack-lg" style="max-width:760px;">
+
+  {# ───── Recap ───── #}
+  <section class="card">
+    <h3 class="card-title">État de la pause</h3>
+    <div class="stack stack-sm" style="font-size:14px;">
+      <div>
+        <strong>Mode :</strong> {{ mode }}
+        ({{ 'copywriting depuis CSV' if mode == 'copywriting' else 'invention pure (extension)' }})
+      </div>
+      <div>
+        <strong>Avancement :</strong> chunk <span class="mono">{{ next_chunk_idx }}</span> / {{ total_chunks }} traité.
+        Il reste <span class="mono">{{ remaining_chunks }}</span> chunk(s) à exécuter
+        (~{{ n_tweets_remaining }} tweets).
+      </div>
+      <div>
+        <strong>Tweets déjà sauvegardés :</strong> {{ run.output_tweets_count or 0 }} (déjà en DB).
+      </div>
+      <div class="muted text-xs">
+        Modèle utilisé jusqu'ici : <span class="mono">{{ run.model_adaptation }}</span>.
+        Tu peux le changer ci-dessous, mais attention : la voix peut shifter entre les chunks
+        si tu changes de famille de modèle (Opus → Haiku par exemple).
+      </div>
+    </div>
+  </section>
+
+  {# ───── Choix modèle ───── #}
+  <section class="card">
+    <h3 class="card-title">Modèle pour la suite</h3>
+    <div class="field">
+      <label class="field-label">Copywriting (adaptation)</label>
+      <select name="model_adaptation" id="model_adaptation" class="select">
+        {% for m in available_models %}
+        <option value="{{ m.id }}" {% if m.id == default_adaptation %}selected{% endif %}>{{ m.label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field-help">Par défaut : modèle d'origine du run. Tu peux basculer pour les chunks restants.</p>
+    </div>
+  </section>
+
+  {# ───── Coût estimé (live, sur le restant) ───── #}
+  <section class="card">
+    <h3 class="card-title">Coût estimé sur les {{ remaining_chunks }} chunks restants</h3>
+    <div id="cost-body">
+      {% if cost.pricing_available %}
+      <div class="grid grid-3 mb-md">
+        <div class="metric tight">
+          <div class="label">1er chunk (cache write)</div>
+          <div class="value" style="font-size:22px;">${{ "%.3f"|format(cost.copy_first_chunk_usd) }}</div>
+        </div>
+        <div class="metric tight">
+          <div class="label">Chunks suivants (cache read)</div>
+          <div class="value" style="font-size:22px;">${{ "%.4f"|format(cost.copy_subsequent_chunk_usd) }}<span class="unit"> / chunk</span></div>
+        </div>
+        <div class="metric tight" style="background:rgba(139,45,74,0.06); border-color:rgba(139,45,74,0.25);">
+          <div class="label">Total reprise</div>
+          <div class="value" style="font-size:28px;">${{ "%.2f"|format(cost.total_usd) }}</div>
+        </div>
+      </div>
+      {% else %}
+      <div class="alert warn">
+        <span class="dot warn"></span>
+        <span>Pricing inconnu pour le modèle sélectionné.</span>
+      </div>
+      {% endif %}
+    </div>
+    <p class="muted text-xs" style="margin:0;">
+      Le coût déjà payé jusqu'à la pause reste sur le run · ce montant ne couvre que la suite.
+    </p>
+  </section>
+
+  <div class="row gap-md" style="justify-content:flex-end;">
+    <a href="{{ url_for('tweets.show_run', run_id=run.id) }}" class="btn ghost">Annuler</a>
+    <button type="submit" class="btn primary">
+      ▶ Reprendre ({{ remaining_chunks }} chunks · ~{{ n_tweets_remaining }} tweets)
+    </button>
+  </div>
+</form>
+
+<script>
+(function(){
+  const N_TWEETS = {{ n_tweets_remaining|int or 1 }};
+  const MODE = "{{ 'extension' if mode == 'extension' else 'copywriting' }}";
+  const adaptSel = document.getElementById('model_adaptation');
+  const costBody = document.getElementById('cost-body');
+
+  let inflight = null;
+  async function refresh(){
+    if (inflight) inflight.abort();
+    const ctrl = new AbortController();
+    inflight = ctrl;
+    costBody.style.opacity = 0.5;
+    try {
+      const res = await fetch("{{ url_for('tweets.cost_estimate') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mode: MODE, n_tweets: N_TWEETS, model_adaptation: adaptSel.value}),
+        signal: ctrl.signal,
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'erreur');
+      costBody.innerHTML = renderCost(data.cost);
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        costBody.innerHTML = '<div class="alert err"><span class="dot err"></span><span>Erreur estimation : '+e.message+'</span></div>';
+      }
+    } finally {
+      costBody.style.opacity = 1;
+      inflight = null;
+    }
+  }
+
+  function fmt(n, d){ return '$' + Number(n).toFixed(d); }
+  function renderCost(c){
+    if (!c.pricing_available) {
+      return '<div class="alert warn"><span class="dot warn"></span><span>Pricing inconnu pour le modèle sélectionné.</span></div>';
+    }
+    return `
+      <div class="grid grid-3 mb-md">
+        <div class="metric tight">
+          <div class="label">1er chunk (cache write)</div>
+          <div class="value" style="font-size:22px;">${fmt(c.copy_first_chunk_usd, 3)}</div>
+        </div>
+        <div class="metric tight">
+          <div class="label">Chunks suivants (cache read)</div>
+          <div class="value" style="font-size:22px;">${fmt(c.copy_subsequent_chunk_usd, 4)}<span class="unit"> / chunk</span></div>
+        </div>
+        <div class="metric tight" style="background:rgba(139,45,74,0.06); border-color:rgba(139,45,74,0.25);">
+          <div class="label">Total reprise</div>
+          <div class="value" style="font-size:28px;">${fmt(c.total_usd, 2)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  adaptSel.addEventListener('change', refresh);
+})();
+</script>
+
+{% endblock %}

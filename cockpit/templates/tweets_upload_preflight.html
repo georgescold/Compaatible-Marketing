@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}Preflight upload · Cockpit{% endblock %}
+{% block crumb %}Tweets · Preflight{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <a href="{{ url_for('tweets.index') }}" class="text-xs muted"
+       style="display:inline-block; margin-bottom:8px; text-decoration:none;">← Annuler et revenir aux tweets</a>
+    <h1>Confirmer le run</h1>
+    <p class="sub">
+      CSV <span class="mono">{{ source_csv_name }}</span> · <strong>{{ n_tweets }}</strong> tweets seront traités
+      ({{ full_count }} valides dans le fichier{% if max_tweets %} · limite preview {{ max_tweets }}{% endif %})
+      {% if source_handle %} · source <span class="mono">@{{ source_handle }}</span>{% endif %}
+      {% if detected_language %} · langue <span class="mono">{{ detected_language }}</span>{% endif %}
+    </p>
+  </div>
+</header>
+
+<form method="post" action="{{ url_for('tweets.upload_launch') }}" class="stack stack-lg" style="max-width:760px;" id="preflight-form">
+  <input type="hidden" name="token" value="{{ token }}">
+  <input type="hidden" name="source_csv_name" value="{{ source_csv_name }}">
+  {% if max_tweets %}<input type="hidden" name="max_tweets" value="{{ max_tweets }}">{% endif %}
+
+  {# ───── Choix modèles ───── #}
+  <section class="card">
+    <h3 class="card-title">Modèles pour ce run</h3>
+    <div class="card-sub" style="margin-bottom:14px;">
+      Ces choix sont valables uniquement pour ce run. Le défaut vient de tes Settings.
+    </div>
+    <div class="grid grid-2" style="gap:16px;">
+      <div class="field">
+        <label class="field-label">Analyse + persona</label>
+        <select name="model_analysis" id="model_analysis" class="select">
+          {% for m in available_models %}
+          <option value="{{ m.id }}" {% if m.id == default_analysis %}selected{% endif %}>{{ m.label }}</option>
+          {% endfor %}
+        </select>
+        <p class="field-help">Utilisé pour le reverse-engineering et l'émergence de persona (2 appels API).</p>
+      </div>
+      <div class="field">
+        <label class="field-label">Copywriting (adaptation)</label>
+        <select name="model_adaptation" id="model_adaptation" class="select">
+          {% for m in available_models %}
+          <option value="{{ m.id }}" {% if m.id == default_adaptation %}selected{% endif %}>{{ m.label }}</option>
+          {% endfor %}
+        </select>
+        <p class="field-help">Utilisé pour la génération des tweets ({{ cost.chunks }} chunks de 20 tweets).</p>
+      </div>
+    </div>
+  </section>
+
+  {# ───── Extension automatique (pré-chaînée) ───── #}
+  <section class="card">
+    <h3 class="card-title">Prolonger automatiquement après le run initial</h3>
+    <div class="card-sub" style="margin-bottom:14px;">
+      Optionnel · enchaîne une extension (invention pure) dans la voix de la persona dès que le pipeline initial finit.
+      Pas de re-analyse, pas de nouvelle persona : on réutilise celles que le run initial vient de produire.
+    </div>
+    <label class="row gap-sm" style="cursor:pointer; align-items:flex-start; margin-bottom:12px;">
+      <input type="checkbox" name="chain_extension" id="chain_extension" value="1"
+             style="margin-top:3px; transform:scale(1.2);">
+      <span><strong>Enchaîner une extension après le run initial</strong></span>
+    </label>
+    <div class="field" id="chain_extension_count_wrap" style="display:none; max-width:320px;">
+      <label class="field-label" for="chain_extension_count">Posts supplémentaires à inventer</label>
+      <input type="number" id="chain_extension_count" name="chain_extension_count"
+             value="500" min="1" max="2000" step="1" class="input">
+      <p class="field-help">1 thread = 1 post, 1 tweet isolé = 1 post. Le copywriter génère ~1,5× plus de messages pour absorber la marge threading. Maximum 2000. Coût et durée recalculés en live.</p>
+    </div>
+  </section>
+
+  {# ───── Prévisionnel de publication ───── #}
+  <section class="card">
+    <h3 class="card-title">Prévisionnel de publication</h3>
+    <div class="card-sub" style="margin-bottom:14px;">
+      Combien de publications par jour vises-tu ? Un thread compte pour 1 publication (comme un tweet simple).
+      Les tweets de l'extension sont inclus dans le total.
+    </div>
+    <div class="grid grid-3" style="gap:16px; align-items:end;">
+      <div class="field">
+        <label class="field-label" for="publish_frequency">Fréquence (publications / jour)</label>
+        <input type="number" id="publish_frequency" name="publish_frequency"
+               value="4" min="1" max="50" step="1" class="input">
+      </div>
+      <div class="metric tight">
+        <div class="label">Publications générées</div>
+        <div class="value" style="font-size:22px;"><span id="forecast-units">{{ n_tweets }}</span></div>
+      </div>
+      <div class="metric tight" style="background:rgba(139,45,74,0.06); border-color:rgba(139,45,74,0.25);">
+        <div class="label">Durée prévisionnelle</div>
+        <div class="value" style="font-size:24px;"><span id="forecast-days">—</span> <span class="unit">jours</span></div>
+      </div>
+    </div>
+  </section>
+
+  {# ───── Coût estimé (live) ───── #}
+  <section class="card" id="cost-card">
+    <h3 class="card-title">Coût estimé</h3>
+    <div id="cost-body">
+      {% include "_tweets_cost_block.html" %}
+    </div>
+    <p class="muted text-xs" style="margin:0;">
+      Estimation grossière (~±25%) basée sur la taille typique des prompts système et output JSON.
+      Le coût réel apparaîtra à la fin du run.
+    </p>
+  </section>
+
+  <div class="row gap-md" style="justify-content:flex-end;">
+    <a href="{{ url_for('tweets.index') }}" class="btn ghost">Annuler</a>
+    <button type="submit" class="btn primary" id="launch-btn">
+      Lancer le pipeline ({{ n_tweets }} tweets)
+    </button>
+  </div>
+</form>
+
+<script>
+(function(){
+  const N_TWEETS = {{ n_tweets|int }};
+  const MODE = "fresh";
+  const adaptSel = document.getElementById('model_adaptation');
+  const analysisSel = document.getElementById('model_analysis');
+  const costBody = document.getElementById('cost-body');
+  const chainChk = document.getElementById('chain_extension');
+  const chainWrap = document.getElementById('chain_extension_count_wrap');
+  const chainCountInput = document.getElementById('chain_extension_count');
+
+  function currentExtensionCount(){
+    if (!chainChk.checked) return 0;
+    return Math.max(0, parseInt(chainCountInput.value, 10) || 0);
+  }
+
+  let inflight = null;
+  async function refresh(){
+    if (inflight) inflight.abort();
+    const ctrl = new AbortController();
+    inflight = ctrl;
+    costBody.style.opacity = 0.5;
+    try {
+      const res = await fetch("{{ url_for('tweets.cost_estimate') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          mode: MODE,
+          n_tweets: N_TWEETS,
+          model_adaptation: adaptSel.value,
+          model_analysis: analysisSel.value,
+          n_extension: currentExtensionCount(),
+        }),
+        signal: ctrl.signal,
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'erreur');
+      costBody.innerHTML = renderCost(data.cost);
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        costBody.innerHTML = '<div class="alert err"><span class="dot err"></span><span>Erreur estimation : '+e.message+'</span></div>';
+      }
+    } finally {
+      costBody.style.opacity = 1;
+      inflight = null;
+    }
+  }
+
+  function fmt(n, d=4){ return '$' + Number(n).toFixed(d); }
+  function renderCost(c){
+    if (!c.pricing_available) {
+      return '<div class="alert warn"><span class="dot warn"></span><span>Pricing inconnu pour un des modèles sélectionnés. Lance le run, le coût réel sera affiché à la fin.</span></div>';
+    }
+    const extBlock = (c.extension_usd && c.extension_usd > 0) ? `
+        <div class="metric tight">
+          <div class="label">Extension (${c.extension_chunks} chunks)</div>
+          <div class="value" style="font-size:20px;">${fmt(c.extension_usd, 3)}</div>
+        </div>` : '';
+    return `
+      <div class="grid grid-4 mb-md">
+        <div class="metric tight">
+          <div class="label">Analyse</div>
+          <div class="value" style="font-size:20px;">${fmt(c.analyze_usd, 3)}</div>
+        </div>
+        <div class="metric tight">
+          <div class="label">Persona</div>
+          <div class="value" style="font-size:20px;">${fmt(c.persona_usd, 3)}</div>
+        </div>
+        <div class="metric tight">
+          <div class="label">Copywriting (${c.chunks} chunks)</div>
+          <div class="value" style="font-size:20px;">${fmt(c.copy_total_usd, 3)}</div>
+        </div>
+        ${extBlock}
+        <div class="metric tight" style="background:rgba(139,45,74,0.06); border-color:rgba(139,45,74,0.25);">
+          <div class="label">Total estimé</div>
+          <div class="value" style="font-size:24px;">${fmt(c.total_usd, 2)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  adaptSel.addEventListener('change', refresh);
+  analysisSel.addEventListener('change', refresh);
+
+  // Prévisionnel de publication (calcul local, pas d'appel serveur)
+  const freqInput = document.getElementById('publish_frequency');
+  const forecastDays = document.getElementById('forecast-days');
+  const forecastUnits = document.getElementById('forecast-units');
+  function refreshForecast(){
+    const f = Math.max(1, parseInt(freqInput.value, 10) || 1);
+    const total = N_TWEETS + currentExtensionCount();
+    forecastUnits.textContent = total;
+    forecastDays.textContent = Math.ceil(total / f);
+  }
+  freqInput.addEventListener('input', refreshForecast);
+
+  // Extension chaînée : toggle visibilité + recalcule cost + forecast
+  function refreshChainUI(){
+    chainWrap.style.display = chainChk.checked ? '' : 'none';
+    refreshForecast();
+    refresh();
+  }
+  chainChk.addEventListener('change', refreshChainUI);
+  chainCountInput.addEventListener('input', () => { refreshForecast(); refresh(); });
+
+  refreshForecast();
+})();
+</script>
+
+{% endblock %}

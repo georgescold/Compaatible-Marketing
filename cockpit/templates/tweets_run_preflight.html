@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}Preflight · Run #{{ parent_run.id }} · Cockpit{% endblock %}
+{% block crumb %}Tweets · Run #{{ parent_run.id }} · Preflight{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <a href="{{ url_for('tweets.show_run', run_id=parent_run.id) }}" class="text-xs muted"
+       style="display:inline-block; margin-bottom:8px; text-decoration:none;">← Retour au run #{{ parent_run.id }}</a>
+    <h1>
+      {% if mode == 'resume' %}Reprendre sur les tweets restants{% else %}Prolonger le corpus{% endif %}
+    </h1>
+    <p class="sub">
+      Persona <span class="ink" style="font-weight:500;">{{ parent_run.persona_first_name or '?' }}</span>
+      · run parent <span class="mono">#{{ parent_run.id }}</span>
+      {% if parent_run.source_handle %} · source <span class="mono">@{{ parent_run.source_handle }}</span>{% endif %}
+    </p>
+  </div>
+</header>
+
+<form method="post" action="{{ launch_url }}" class="stack stack-lg" style="max-width:760px;">
+  {% if mode == 'extend' %}
+    <input type="hidden" name="count" value="{{ count }}">
+  {% endif %}
+
+  {# ───── Recap volume ───── #}
+  <section class="card">
+    <h3 class="card-title">Récapitulatif</h3>
+    <div class="stack stack-sm" style="font-size:14px;">
+      {% if mode == 'resume' %}
+        <div>
+          <strong>Mode :</strong> reprise depuis preview.
+          Le run parent a traité <span class="mono">{{ parent_run.max_source_tweets or '?' }}</span> tweets sur
+          <span class="mono">{{ full_csv_count or '?' }}</span> dans le CSV.
+          <strong>{{ n_tweets }}</strong> tweets restants à traiter.
+        </div>
+      {% else %}
+        <div>
+          <strong>Mode :</strong> extension (invention pure).
+          <strong>{{ n_tweets }}</strong> tweets seront inventés dans la voix de
+          <em>{{ parent_run.persona_first_name }}</em>, en réutilisant le playbook et la persona
+          (pas de nouvel appel analyze, pas de doublon persona).
+        </div>
+      {% endif %}
+      <div class="muted text-xs">
+        Chunks copywriting estimés : ~<span id="chunks-count">{{ cost.chunks }}</span> (20 tweets/chunk)
+      </div>
+    </div>
+  </section>
+
+  {# ───── Choix modèle ───── #}
+  <section class="card">
+    <h3 class="card-title">Modèle pour ce run</h3>
+    <div class="card-sub" style="margin-bottom:14px;">
+      Le défaut reprend le modèle du run parent. Ce choix est valable uniquement pour ce run.
+    </div>
+    <div class="field">
+      <label class="field-label">Copywriting (adaptation)</label>
+      <select name="model_adaptation" id="model_adaptation" class="select">
+        {% for m in available_models %}
+        <option value="{{ m.id }}" {% if m.id == default_adaptation %}selected{% endif %}>{{ m.label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field-help">Utilisé pour la génération des tweets (~{{ cost.chunks }} chunks de 20).</p>
+    </div>
+  </section>
+
+  {# ───── Coût estimé (live) ───── #}
+  <section class="card">
+    <h3 class="card-title">Coût estimé</h3>
+    <div id="cost-body">
+      {% if cost.pricing_available %}
+      <div class="grid grid-3 mb-md">
+        <div class="metric tight">
+          <div class="label">1er chunk (cache write)</div>
+          <div class="value" style="font-size:22px;">${{ "%.3f"|format(cost.copy_first_chunk_usd) }}</div>
+        </div>
+        <div class="metric tight">
+          <div class="label">Chunks suivants (cache read)</div>
+          <div class="value" style="font-size:22px;">${{ "%.4f"|format(cost.copy_subsequent_chunk_usd) }}<span class="unit"> / chunk</span></div>
+        </div>
+        <div class="metric tight" style="background:rgba(139,45,74,0.06); border-color:rgba(139,45,74,0.25);">
+          <div class="label">Total estimé</div>
+          <div class="value" style="font-size:28px;">${{ "%.2f"|format(cost.total_usd) }}</div>
+        </div>
+      </div>
+      {% else %}
+      <div class="alert warn">
+        <span class="dot warn"></span>
+        <span>Pricing inconnu pour le modèle sélectionné. Lance le run et le coût réel sera affiché à la fin.</span>
+      </div>
+      {% endif %}
+    </div>
+    <p class="muted text-xs" style="margin:0;">
+      Estimation grossière (~±25%) basée sur la taille typique des prompts système et output JSON.
+      Le coût réel sera affiché en fin de run et reposera sur les tokens facturés par Anthropic.
+    </p>
+  </section>
+
+  {# ───── Prévisionnel de publication ───── #}
+  <section class="card">
+    <h3 class="card-title">Prévisionnel de publication</h3>
+    <div class="card-sub" style="margin-bottom:14px;">
+      Combien de publications par jour vises-tu ? Un thread compte pour 1 publication (comme un tweet simple).
+    </div>
+    <div class="grid grid-3" style="gap:16px; align-items:end;">
+      <div class="field">
+        <label class="field-label" for="publish_frequency">Fréquence (publications / jour)</label>
+        <input type="number" id="publish_frequency" name="publish_frequency"
+               value="4" min="1" max="50" step="1" class="input">
+      </div>
+      <div class="metric tight">
+        <div class="label">Publications générées</div>
+        <div class="value" style="font-size:22px;" id="forecast-units">{{ n_tweets }}</div>
+      </div>
+      <div class="metric tight" style="background:rgba(139,45,74,0.06); border-color:rgba(139,45,74,0.25);">
+        <div class="label">Durée prévisionnelle</div>
+        <div class="value" style="font-size:24px;"><span id="forecast-days">—</span> <span class="unit">jours</span></div>
+      </div>
+    </div>
+  </section>
+
+  {# ───── Option images ───── #}
+  <section class="card">
+    <h3 class="card-title">Images</h3>
+    <label class="row gap-sm" style="cursor:pointer; align-items:flex-start;">
+      <input type="checkbox" name="include_images" value="1"
+             {% if default_include_images %}checked{% endif %}
+             style="margin-top:3px; transform:scale(1.2);">
+      <span>
+        <strong>Intégrer automatiquement les images après le pipeline</strong>
+        <div class="muted text-xs" style="margin-top:4px;">
+          {% if default_include_images %}
+            Le run parent avait des images matchées ({{ parent_image_stats.already_matched }} / {{ parent_image_stats.needs_image }} tweets visuels). Coché par défaut.
+          {% else %}
+            Le run parent n'avait pas d'images matchées. Tu peux quand même cocher si tu veux que ce run les intègre.
+          {% endif %}
+          <br>Aucun appel API externe : matching local sur la base d'images classifiées (pool actuel filtré
+          par fit Compaatible + URL publique).
+        </div>
+      </span>
+    </label>
+  </section>
+
+  {# ───── Boutons ───── #}
+  <div class="row gap-md" style="justify-content:flex-end;">
+    <a href="{{ url_for('tweets.show_run', run_id=parent_run.id) }}" class="btn ghost">Annuler</a>
+    <button type="submit" class="btn primary">
+      {% if mode == 'resume' %}Lancer la reprise{% else %}Lancer l'extension{% endif %} ({{ n_tweets }} tweets)
+    </button>
+  </div>
+</form>
+
+<script>
+(function(){
+  const N_TWEETS = {{ n_tweets|int }};
+  const MODE = "{{ 'extension' if mode == 'extend' else 'copywriting' }}";
+  const adaptSel = document.getElementById('model_adaptation');
+  const costBody = document.getElementById('cost-body');
+
+  let inflight = null;
+  async function refresh(){
+    if (inflight) inflight.abort();
+    const ctrl = new AbortController();
+    inflight = ctrl;
+    costBody.style.opacity = 0.5;
+    try {
+      const res = await fetch("{{ url_for('tweets.cost_estimate') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          mode: MODE,
+          n_tweets: N_TWEETS,
+          model_adaptation: adaptSel.value,
+        }),
+        signal: ctrl.signal,
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'erreur');
+      costBody.innerHTML = renderCost(data.cost);
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        costBody.innerHTML = '<div class="alert err"><span class="dot err"></span><span>Erreur estimation : '+e.message+'</span></div>';
+      }
+    } finally {
+      costBody.style.opacity = 1;
+      inflight = null;
+    }
+  }
+
+  function fmt(n, d){ return '$' + Number(n).toFixed(d); }
+  function renderCost(c){
+    if (!c.pricing_available) {
+      return '<div class="alert warn"><span class="dot warn"></span><span>Pricing inconnu pour le modèle sélectionné.</span></div>';
+    }
+    return `
+      <div class="grid grid-3 mb-md">
+        <div class="metric tight">
+          <div class="label">1er chunk (cache write)</div>
+          <div class="value" style="font-size:22px;">${fmt(c.copy_first_chunk_usd, 3)}</div>
+        </div>
+        <div class="metric tight">
+          <div class="label">Chunks suivants (cache read)</div>
+          <div class="value" style="font-size:22px;">${fmt(c.copy_subsequent_chunk_usd, 4)}<span class="unit"> / chunk</span></div>
+        </div>
+        <div class="metric tight" style="background:rgba(139,45,74,0.06); border-color:rgba(139,45,74,0.25);">
+          <div class="label">Total estimé</div>
+          <div class="value" style="font-size:28px;">${fmt(c.total_usd, 2)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  adaptSel.addEventListener('change', refresh);
+
+  // Prévisionnel de publication (calcul local, pas d'appel serveur)
+  const freqInput = document.getElementById('publish_frequency');
+  const forecastDays = document.getElementById('forecast-days');
+  function refreshForecast(){
+    const f = Math.max(1, parseInt(freqInput.value, 10) || 1);
+    const days = Math.ceil(N_TWEETS / f);
+    forecastDays.textContent = days;
+  }
+  freqInput.addEventListener('input', refreshForecast);
+  refreshForecast();
+})();
+</script>
+
+{% endblock %}

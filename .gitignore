@@ -1,0 +1,42 @@
+# Images (trop volumineuses pour GitHub)
+Images/
+Images_thumbs/
+
+# Secrets
+.env
+.env.local
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.pytest_cache/
+*.egg-info/
+
+# Data caches
+cockpit/data/uploads/*.csv
+cockpit/data/outputs/*.csv
+cockpit/data/cache/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Large LFS artifacts (Twitter algorithm dump)
+x-algorithm/phoenix/artifacts/
+*.npz

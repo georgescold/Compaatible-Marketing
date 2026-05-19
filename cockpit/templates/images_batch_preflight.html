@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Preflight batch images · Cockpit{% endblock %}
+{% block crumb %}Images · Preflight batch{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <a href="{{ url_for('images.index') }}" class="text-xs muted"
+       style="display:inline-block; margin-bottom:8px; text-decoration:none;">← Annuler et revenir à la galerie</a>
+    <h1>Confirmer le batch d'indexation</h1>
+    <p class="sub">
+      <strong>{{ n_images }}</strong> image(s) à annoter via Vision API.
+    </p>
+  </div>
+</header>
+
+<form method="post" action="{{ url_for('images.batch_index_launch') }}" class="stack stack-lg" style="max-width:760px;">
+  <input type="hidden" name="limit" value="{{ limit }}">
+
+  {# ───── Aperçu ───── #}
+  <section class="card">
+    <h3 class="card-title">Aperçu</h3>
+    <div class="card-sub" style="margin-bottom:12px;">
+      Premières images de la file ({{ targets_sample|length }} / {{ n_images }}).
+    </div>
+    <div class="row gap-sm" style="flex-wrap:wrap;">
+      {% for fn in targets_sample %}
+      <div style="width:80px; height:80px; border-radius:6px; overflow:hidden; background:#f6f1ec; border:1px solid var(--hairline);">
+        <img src="{{ url_for('images.serve', filename=fn) }}" alt=""
+             style="width:100%; height:100%; object-fit:cover;" loading="lazy">
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ───── Choix modèle ───── #}
+  <section class="card">
+    <h3 class="card-title">Modèle Vision pour ce batch</h3>
+    <div class="card-sub" style="margin-bottom:14px;">
+      Valable uniquement pour ce batch. Le défaut vient de tes Settings.
+    </div>
+    <div class="field">
+      <label class="field-label">Modèle</label>
+      <select name="model_vision" id="model_vision" class="select">
+        {% for m in available_models %}
+        <option value="{{ m.id }}" {% if m.id == default_model %}selected{% endif %}>{{ m.label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field-help">Haiku est largement suffisant pour l'annotation marketing et coûte 5× moins que Sonnet.</p>
+    </div>
+  </section>
+
+  {# ───── Coût estimé (live) ───── #}
+  <section class="card">
+    <h3 class="card-title">Coût estimé</h3>
+    <div id="cost-body">
+      {% if cost.pricing_available %}
+      <div class="grid grid-3 mb-md">
+        <div class="metric tight">
+          <div class="label">1re image (cache write)</div>
+          <div class="value" style="font-size:20px;">${{ "%.4f"|format(cost.first_image_usd) }}</div>
+        </div>
+        <div class="metric tight">
+          <div class="label">Images suivantes (cache read)</div>
+          <div class="value" style="font-size:20px;">${{ "%.4f"|format(cost.subsequent_image_usd) }}<span class="unit"> / img</span></div>
+        </div>
+        <div class="metric tight" style="background:rgba(139,45,74,0.06); border-color:rgba(139,45,74,0.25);">
+          <div class="label">Total estimé ({{ cost.n_images }} img)</div>
+          <div class="value" style="font-size:24px;">${{ "%.2f"|format(cost.total_usd) }}</div>
+        </div>
+      </div>
+      {% else %}
+      <div class="alert warn">
+        <span class="dot warn"></span>
+        <span>Pricing inconnu pour le modèle sélectionné.</span>
+      </div>
+      {% endif %}
+    </div>
+    <p class="muted text-xs" style="margin:0;">
+      Estimation grossière (~±25%). Chaque image ajoute ~1.6k tokens input fresh + ~600 tokens output.
+    </p>
+  </section>
+
+  <div class="row gap-md" style="justify-content:flex-end;">
+    <a href="{{ url_for('images.index') }}" class="btn ghost">Annuler</a>
+    <button type="submit" class="btn primary">Lancer le batch ({{ n_images }} img)</button>
+  </div>
+</form>
+
+<script>
+(function(){
+  const N_IMAGES = {{ n_images|int }};
+  const modelSel = document.getElementById('model_vision');
+  const costBody = document.getElementById('cost-body');
+
+  let inflight = null;
+  async function refresh(){
+    if (inflight) inflight.abort();
+    const ctrl = new AbortController();
+    inflight = ctrl;
+    costBody.style.opacity = 0.5;
+    try {
+      const res = await fetch("{{ url_for('images.cost_estimate') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({model: modelSel.value, n_images: N_IMAGES}),
+        signal: ctrl.signal,
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'erreur');
+      costBody.innerHTML = renderCost(data.cost);
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        costBody.innerHTML = '<div class="alert err"><span class="dot err"></span><span>Erreur estimation : '+e.message+'</span></div>';
+      }
+    } finally {
+      costBody.style.opacity = 1;
+      inflight = null;
+    }
+  }
+
+  function fmt(n, d){ return '$' + Number(n).toFixed(d); }
+  function renderCost(c){
+    if (!c.pricing_available) {
+      return '<div class="alert warn"><span class="dot warn"></span><span>Pricing inconnu pour le modèle sélectionné.</span></div>';
+    }
+    return `
+      <div class="grid grid-3 mb-md">
+        <div class="metric tight">
+          <div class="label">1re image (cache write)</div>
+          <div class="value" style="font-size:20px;">${fmt(c.first_image_usd, 4)}</div>
+        </div>
+        <div class="metric tight">
+          <div class="label">Images suivantes (cache read)</div>
+          <div class="value" style="font-size:20px;">${fmt(c.subsequent_image_usd, 4)}<span class="unit"> / img</span></div>
+        </div>
+        <div class="metric tight" style="background:rgba(139,45,74,0.06); border-color:rgba(139,45,74,0.25);">
+          <div class="label">Total estimé (${c.n_images} img)</div>
+          <div class="value" style="font-size:24px;">${fmt(c.total_usd, 2)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  modelSel.addEventListener('change', refresh);
+})();
+</script>
+
+{% endblock %}

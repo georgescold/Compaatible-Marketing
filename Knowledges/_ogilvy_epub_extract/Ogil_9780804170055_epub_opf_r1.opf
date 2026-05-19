@@ -1,0 +1,340 @@
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="PrimaryID" version="2.0">
+	<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+		<dc:title>Ogilvy on Advertising</dc:title>
+		<dc:language>en-US</dc:language>
+		<dc:identifier id="PrimaryID" opf:scheme="ISBN">978-0-8041-7005-5</dc:identifier>
+		<dc:creator opf:file-as="Ogilvy, David" opf:role="aut">David Ogilvy</dc:creator>
+		<dc:publisher>Knopf Doubleday Publishing Group</dc:publisher>
+		<dc:date opf:event="publication">2020-12-20</dc:date>
+		<dc:rights>Copyright © 1983 by David Ogilvy</dc:rights>
+		<meta content="cover-image" name="cover"/>
+			<meta content="3.0" name="epubcheckversion"/>
+			<meta content="2013-08-23" name="epubcheckdate"/>
+	<description xmlns="http://purl.org/dc/elements/1.1/">&lt;p&gt;A candid and indispensable primer on all aspects of advertising from the man Time has called "the most sought after wizard in the business". 223 photos.</description>
+</metadata>
+	<manifest>
+		<item href="Ogil_9780804170055_epub_ncx_r1.ncx" id="ncx" media-type="application/x-dtbncx+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_cvi_r1.htm" id="cvi" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_col1_r1.htm" id="col1" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_tp_r1.htm" id="tp" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_cop_r1.htm" id="cop" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_toc_r1.htm" id="toc" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_col2_r1.htm" id="col2" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c01_r1.htm" id="c01" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c02_r1.htm" id="c02" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c03_r1.htm" id="c03" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c04_r1.htm" id="c04" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c05_r1.htm" id="c05" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c06_r1.htm" id="c06" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c07_r1.htm" id="c07" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c08_r1.htm" id="c08" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c09_r1.htm" id="c09" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c10_r1.htm" id="c10" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c11_r1.htm" id="c11" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c12_r1.htm" id="c12" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c13_r1.htm" id="c13" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c14_r1.htm" id="c14" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c15_r1.htm" id="c15" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c16_r1.htm" id="c16" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c17_r1.htm" id="c17" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c18_r1.htm" id="c18" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c19_r1.htm" id="c19" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_c20_r1.htm" id="c20" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_bm_r1.htm" id="bm" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_ind_r1.htm" id="ind" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_bm1_r1.htm" id="bm1" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_bm2_r1.htm" id="bm2" media-type="application/xhtml+xml"/>
+		<item href="OEBPS/Ogil_9780804170055_epub_css_r1.css" id="css" media-type="text/css"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_001_r1.jpg" id="f001" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_002_r1.jpg" id="f002" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_003_r1.jpg" id="f003" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_004_r1.jpg" id="f004" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_004a_r1.jpg" id="f004a" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_005_r1.jpg" id="f005" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_006_r1.jpg" id="f006" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_007_r1.jpg" id="f007" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_008_r1.jpg" id="f008" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_009_r1.jpg" id="f009" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_010_r1.jpg" id="f010" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_011_r1.jpg" id="f011" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_012_r1.jpg" id="f012" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_013_r1.jpg" id="f013" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_014_r1.jpg" id="f014" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_015_r1.jpg" id="f015" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_016_r1.jpg" id="f016" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_017_r1.jpg" id="f017" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_018_r1.jpg" id="f018" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_019_r1.jpg" id="f019" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_020_r1.jpg" id="f020" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_021_r1.jpg" id="f021" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_022_r1.jpg" id="f022" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_023_r1.jpg" id="f023" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_024_r1.jpg" id="f024" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_025_r1.jpg" id="f025" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_026_r1.jpg" id="f026" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_027_r1.jpg" id="f027" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_028_r1.jpg" id="f028" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_029_r1.jpg" id="f029" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_030_r1.jpg" id="f030" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_031_r1.jpg" id="f031" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_032_r1.jpg" id="f032" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_033_r1.jpg" id="f033" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_034_r1.jpg" id="f034" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_035_r1.jpg" id="f035" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_036_r1.jpg" id="f036" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_037_r1.jpg" id="f037" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_038_r1.jpg" id="f038" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_039_r1.jpg" id="f039" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_040_r1.jpg" id="f040" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_041_r1.jpg" id="f041" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_042_r1.jpg" id="f042" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_043_r1.jpg" id="f043" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_044_r1.jpg" id="f044" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_045_r1.jpg" id="f045" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_046_r1.jpg" id="f046" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_047_r1.jpg" id="f047" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_048_r1.jpg" id="f048" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_049_r1.jpg" id="f049" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_050_r1.jpg" id="f050" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_051_r1.jpg" id="f051" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_052_r1.jpg" id="f052" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_053_r1.jpg" id="f053" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_054_r1.jpg" id="f054" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_055_r1.jpg" id="f055" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_056_r1.jpg" id="f056" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_057_r1.jpg" id="f057" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_058_r1.jpg" id="f058" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_059_r1.jpg" id="f059" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_060_r1.jpg" id="f060" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_061_r1.jpg" id="f061" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_062_r1.jpg" id="f062" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_063_r1.jpg" id="f063" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_064_r1.jpg" id="f064" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_065_r1.jpg" id="f065" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_066_r1.jpg" id="f066" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_067_r1.jpg" id="f067" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_068_r1.jpg" id="f068" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_069_r1.jpg" id="f069" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_070_r1.jpg" id="f070" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_071_r1.jpg" id="f071" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_072_r1.jpg" id="f072" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_073_r1.jpg" id="f073" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_074_r1.jpg" id="f074" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_075_r1.jpg" id="f075" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_076_r1.jpg" id="f076" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_077_r1.jpg" id="f077" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_078_r1.jpg" id="f078" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_079_r1.jpg" id="f079" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_080_r1.jpg" id="f080" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_081_r1.jpg" id="f081" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_082_r1.jpg" id="f082" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_083_r1.jpg" id="f083" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_084_r1.jpg" id="f084" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_085_r1.jpg" id="f085" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_086_r1.jpg" id="f086" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_087_r1.jpg" id="f087" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_088_r1.jpg" id="f088" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_089_r1.jpg" id="f089" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_090_r1.jpg" id="f090" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_091_r1.jpg" id="f091" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_092_r1.jpg" id="f092" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_093_r1.jpg" id="f093" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_094_r1.jpg" id="f094" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_095_r1.jpg" id="f095" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_096_r1.jpg" id="f096" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_097_r1.jpg" id="f097" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_098_r1.jpg" id="f098" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_099_r1.jpg" id="f099" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_100_r1.jpg" id="f100" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_101_r1.jpg" id="f101" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_102_r1.jpg" id="f102" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_103_r1.jpg" id="f103" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_104_r1.jpg" id="f104" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_105_r1.jpg" id="f105" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_106_r1.jpg" id="f106" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_107_r1.jpg" id="f107" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_108_r1.jpg" id="f108" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_109_r1.jpg" id="f109" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_110_r1.jpg" id="f110" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_111_r1.jpg" id="f111" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_112_r1.jpg" id="f112" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_113_r1.jpg" id="f113" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_114_r1.jpg" id="f114" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_115_r1.jpg" id="f115" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_116_r1.jpg" id="f116" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_117_r1.jpg" id="f117" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_118_r1.jpg" id="f118" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_119_r1.jpg" id="f119" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_120_r1.jpg" id="f120" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_121_r1.jpg" id="f121" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_122_r1.jpg" id="f122" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_123_r1.jpg" id="f123" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_124_r1.jpg" id="f124" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_125_r1.jpg" id="f125" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_126_r1.jpg" id="f126" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_127_r1.jpg" id="f127" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_128_r1.jpg" id="f128" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_129_r1.jpg" id="f129" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_130_r1.jpg" id="f130" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_131_r1.jpg" id="f131" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_132_r1.jpg" id="f132" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_133_r1.jpg" id="f133" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_134_r1.jpg" id="f134" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_135_r1.jpg" id="f135" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_136_r1.jpg" id="f136" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_137_r1.jpg" id="f137" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_138_r1.jpg" id="f138" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_139_r1.jpg" id="f139" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_140_r1.jpg" id="f140" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_141_r1.jpg" id="f141" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_142_r1.jpg" id="f142" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_143_r1.jpg" id="f143" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_144_r1.jpg" id="f144" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_145_r1.jpg" id="f145" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_146_r1.jpg" id="f146" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_147_r1.jpg" id="f147" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_148_r1.jpg" id="f148" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_149_r1.jpg" id="f149" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_150_r1.jpg" id="f150" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_151_r1.jpg" id="f151" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_152_r1.jpg" id="f152" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_153_r1.jpg" id="f153" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_154_r1.jpg" id="f154" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_155_r1.jpg" id="f155" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_156_r1.jpg" id="f156" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_157_r1.jpg" id="f157" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_158_r1.jpg" id="f158" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_159_r1.jpg" id="f159" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_160_r1.jpg" id="f160" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_161_r1.jpg" id="f161" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_162_r1.jpg" id="f162" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_163_r1.jpg" id="f163" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_164_r1.jpg" id="f164" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_165_r1.jpg" id="f165" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_166_r1.jpg" id="f166" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_167_r1.jpg" id="f167" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_168_r1.jpg" id="f168" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_169_r1.jpg" id="f169" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_170_r1.jpg" id="f170" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_171_r1.jpg" id="f171" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_172_r1.jpg" id="f172" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_173_r1.jpg" id="f173" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_174_r1.jpg" id="f174" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_175_r1.jpg" id="f175" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_176_r1.jpg" id="f176" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_177_r1.jpg" id="f177" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_178_r1.jpg" id="f178" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_179_r1.jpg" id="f179" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_180_r1.jpg" id="f180" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_181_r1.jpg" id="f181" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_182_r1.jpg" id="f182" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_183_r1.jpg" id="f183" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_184_r1.jpg" id="f184" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_185_r1.jpg" id="f185" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_186_r1.jpg" id="f186" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_187_r1.jpg" id="f187" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_188_r1.jpg" id="f188" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_189_r1.jpg" id="f189" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_190_r1.jpg" id="f190" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_191_r1.jpg" id="f191" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_192_r1.jpg" id="f192" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_193_r1.jpg" id="f193" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_194_r1.jpg" id="f194" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_195_r1.jpg" id="f195" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_196_r1.jpg" id="f196" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_197_r1.jpg" id="f197" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_198a_r1.jpg" id="f198a" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_199_r1.jpg" id="f199" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_200_r1.jpg" id="f200" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_200a_r1.jpg" id="f200a" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_201_r1.jpg" id="f201" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_201a_r1.jpg" id="f201a" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_202_r1.jpg" id="f202" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_203_r1.jpg" id="f203" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_203a_r1.jpg" id="f203a" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_204_r1.jpg" id="f204" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_205_r1.jpg" id="f205" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_206_r1.jpg" id="f206" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_207_r1.jpg" id="f207" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_208_r1.jpg" id="f208" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_209_r1.jpg" id="f209" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_210_r1.jpg" id="f210" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_211_r1.jpg" id="f211" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_211a_r1.jpg" id="f211a" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_212_r1.jpg" id="f212" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_213_r1.jpg" id="f213" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_213a_r1.jpg" id="f213a" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_214_r1.jpg" id="f214" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_215_r1.jpg" id="f215" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_216_r1.jpg" id="f216" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_217_r1.jpg" id="f217" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_218_r1.jpg" id="f218" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_219_r1.jpg" id="f219" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_219a_r1.jpg" id="f219a" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_220_r1.jpg" id="f220" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_221_r1.jpg" id="f221" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_221a_r1.jpg" id="f221a" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_222_r1.jpg" id="f222" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_223_r1.jpg" id="f223" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_224_r1.jpg" id="f224" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_225_r1.jpg" id="f225" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_226_r1.jpg" id="f226" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_227_r1.jpg" id="f227" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_228_r1.jpg" id="f228" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_229_r1.jpg" id="f229" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_L02_r1.jpg" id="fL02" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_L03_r1.jpg" id="fL03" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_L04_r1.jpg" id="fL04" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_tp_r1.jpg" id="ftp" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_cvi_r1.jpg" id="cover-image" media-type="image/jpeg"/>
+		<item href="OEBPS/images/Ogil_9780804170055_epub_cvt_r1.jpg" id="fcvt" media-type="image/jpeg"/>
+		<item href="OEBPS/page-template.xpgt" id="page" media-type="application/vnd.adobe-page-template+xml"/>
+		<item href="OEBPS/fonts/CharisSILB.ttf" id="font1" media-type="application/x-font-ttf"/>
+		<item href="OEBPS/fonts/CharisSILBI.ttf" id="font2" media-type="application/x-font-ttf"/>
+		<item href="OEBPS/fonts/CharisSILI.ttf" id="font3" media-type="application/x-font-ttf"/>
+		<item href="OEBPS/fonts/CharisSILR.ttf" id="font4" media-type="application/x-font-ttf"/>
+		<item href="OEBPS/fonts/GoudyMTStd-BoldItalic.otf" id="font5" media-type="application/x-font-otf"/>
+		<item href="OEBPS/fonts/GoudyOldStyleMTStd-Italic.otf" id="font6" media-type="application/x-font-otf"/>
+		<item href="OEBPS/fonts/GoudyOldStyleMTStd.otf" id="font7" media-type="application/x-font-otf"/>
+	</manifest>
+	<spine toc="ncx">
+		<itemref idref="cvi" linear="yes"/>
+		<itemref idref="col1" linear="yes"/>
+		<itemref idref="tp" linear="yes"/>
+		<itemref idref="cop" linear="yes"/>
+		<itemref idref="toc" linear="yes"/>
+		<itemref idref="col2" linear="yes"/>
+		<itemref idref="c01" linear="yes"/>
+		<itemref idref="c02" linear="yes"/>
+		<itemref idref="c03" linear="yes"/>
+		<itemref idref="c04" linear="yes"/>
+		<itemref idref="c05" linear="yes"/>
+		<itemref idref="c06" linear="yes"/>
+		<itemref idref="c07" linear="yes"/>
+		<itemref idref="c08" linear="yes"/>
+		<itemref idref="c09" linear="yes"/>
+		<itemref idref="c10" linear="yes"/>
+		<itemref idref="c11" linear="yes"/>
+		<itemref idref="c12" linear="yes"/>
+		<itemref idref="c13" linear="yes"/>
+		<itemref idref="c14" linear="yes"/>
+		<itemref idref="c15" linear="yes"/>
+		<itemref idref="c16" linear="yes"/>
+		<itemref idref="c17" linear="yes"/>
+		<itemref idref="c18" linear="yes"/>
+		<itemref idref="c19" linear="yes"/>
+		<itemref idref="c20" linear="yes"/>
+		<itemref idref="bm" linear="yes"/>
+		<itemref idref="ind" linear="yes"/>
+		<itemref idref="bm1" linear="yes"/>
+		<itemref idref="bm2" linear="yes"/>
+	</spine>
+	<guide>
+		<reference href="OEBPS/Ogil_9780804170055_epub_tp_r1.htm" title="Start" type="text"/>
+		<reference href="OEBPS/Ogil_9780804170055_epub_tp_r1.htm" title="Start" type="start"/>
+		<reference href="OEBPS/Ogil_9780804170055_epub_tp_r1.htm" title="Start Reading" type="other.reader-start-page"/>
+		<reference href="OEBPS/Ogil_9780804170055_epub_toc_r1.htm" title="Table of Contents" type="toc"/>
+		<reference href="OEBPS/Ogil_9780804170055_epub_cvi_r1.htm" title="cover" type="cover"/>
+		<reference href="OEBPS/Ogil_9780804170055_epub_cop_r1.htm" title="Copyright" type="copyright-page"/>
+	</guide>
+</package>

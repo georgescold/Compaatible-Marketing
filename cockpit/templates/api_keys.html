@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Clés API · Cockpit Compaatible{% endblock %}
+{% block crumb %}API · Clés{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Intégration · Accès externe</span>
+    <h1>Clés API</h1>
+    <p class="sub">Authentifie un logiciel externe pour pousser des images dans le pipeline d'indexation et lire les métadonnées.</p>
+  </div>
+</header>
+
+{# ───────────── Bandeau "nouvelle clé" (affiché 1 seule fois) ───────────── #}
+{% if new_key %}
+<section class="card dark mb-lg" style="border-left: 4px solid var(--success); background: #1a2e1f;">
+  <div class="row-between" style="gap:24px; align-items:flex-start;">
+    <div style="flex:1; min-width:0;">
+      <span class="eyebrow" style="color:#9ee0a8;">⚠ Affichée une seule fois</span>
+      <div class="card-title" style="color:#fff;">Ta nouvelle clé est prête. Copie-la maintenant.</div>
+      <div class="card-sub" style="color:rgba(255,255,255,0.75); margin-top:6px;">
+        Elle ne sera plus jamais visible. Si tu la perds, révoque-la et crée-en une nouvelle.
+      </div>
+      <div class="key-display" style="margin-top:14px;">
+        <code id="new-key-value" style="font-family:'JetBrains Mono',monospace; font-size:13.5px; word-break:break-all; color:#fff; background:rgba(255,255,255,0.08); padding:14px 18px; border-radius:8px; display:block;">{{ new_key }}</code>
+        <button type="button" class="btn sm" style="background:#fff; color:var(--ink); border-color:#fff; margin-top:10px;" onclick="copyNewKey(this)">
+          Copier
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<div class="grid" style="grid-template-columns: 1.4fr 1fr; gap: 32px; align-items:start;">
+
+  {# ───────────── Liste des clés ───────────── #}
+  <div>
+    <div class="section-row">
+      <h2 class="section-title">Clés existantes</h2>
+      <span class="section-meta">{{ keys|length }} clé(s)</span>
+    </div>
+
+    {% if keys %}
+    <div class="stack stack-md">
+      {% for k in keys %}
+      <div class="card tight {% if k.revoked_at %}is-revoked{% endif %}" {% if new_key_id == k.id %}style="border-color: var(--success); box-shadow: 0 0 0 3px rgba(46, 160, 67, 0.15);"{% endif %}>
+        <div class="row-between" style="gap:16px;">
+          <div style="flex:1; min-width:0;">
+            <div class="row" style="gap:10px; align-items:center;">
+              <div style="font-weight:500; font-size:15px;">{{ k.name }}</div>
+              {% if k.revoked_at %}
+              <span class="pill err" style="font-size:10px;">RÉVOQUÉE</span>
+              {% else %}
+              <span class="pill ok" style="font-size:10px;">ACTIVE</span>
+              {% endif %}
+            </div>
+
+            <div class="mono text-xs muted" style="margin-top:6px;">{{ k.key_prefix }}…</div>
+
+            <div class="row" style="gap:6px; flex-wrap:wrap; margin-top:10px;">
+              {% for s in k.scopes %}<span class="tag">{{ s }}</span>{% endfor %}
+            </div>
+
+            <div class="text-xs muted" style="margin-top:10px; line-height:1.6;">
+              Créée le <span class="mono">{{ k.created_at.strftime('%Y-%m-%d %H:%M') if k.created_at else '?' }}</span>
+              {% if k.last_used_at %} · dernière utilisation <span class="mono">{{ k.last_used_at.strftime('%Y-%m-%d %H:%M') }}</span>{% else %} · jamais utilisée{% endif %}
+              · <span class="mono">{{ k.request_count }}</span> requête(s)
+              {% if k.notes %}<br><em>{{ k.notes }}</em>{% endif %}
+            </div>
+          </div>
+
+          <div class="stack stack-sm" style="gap:6px; flex-shrink:0;">
+            {% if not k.revoked_at %}
+            <form method="post" action="{{ url_for('api_keys.revoke', key_id=k.id) }}" onsubmit="return confirm('Révoquer cette clé ? Les requêtes en cours échoueront immédiatement.');">
+              <button type="submit" class="btn ghost sm">Révoquer</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('api_keys.delete', key_id=k.id) }}" onsubmit="return confirm('Supprimer définitivement cette clé du registre ?');">
+              <button type="submit" class="btn ghost sm" style="color: var(--error);">Supprimer</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="em-title">Aucune clé pour l'instant.</div>
+      <div class="em-sub">Crée-en une pour permettre à un logiciel externe de pousser des images.</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ───────────── Création + doc ───────────── #}
+  <div class="stack stack-md">
+
+    <div class="card tight">
+      <div class="card-title">Créer une clé</div>
+      <form method="post" action="{{ url_for('api_keys.create') }}" class="stack stack-md" style="margin-top:14px;">
+        <div class="field">
+          <label class="field-label">Nom (interne)</label>
+          <input type="text" name="name" class="input" placeholder="ex: scraper Pinterest, Make.com, n8n…" required maxlength="80">
+        </div>
+
+        <div class="field">
+          <label class="field-label">Permissions</label>
+          <div class="stack" style="gap:6px;">
+            {% for sid, slabel in scopes %}
+            <label class="checkbox-row">
+              <input type="checkbox" name="scopes" value="{{ sid }}" checked>
+              <span><span class="mono" style="font-size:11.5px;">{{ sid }}</span> · <span class="text-xs muted">{{ slabel }}</span></span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Notes (optionnel)</label>
+          <input type="text" name="notes" class="input" placeholder="ex: usage one-shot, à révoquer après le 30/05" maxlength="200">
+        </div>
+
+        <button type="submit" class="btn primary">Générer la clé</button>
+      </form>
+    </div>
+
+    <div class="card tight">
+      <div class="card-title">Comment l'utiliser</div>
+      <div class="text-xs muted" style="margin-top:6px; line-height:1.6;">
+        Authentifie chaque requête avec le header <span class="mono">Authorization: Bearer cmp_…</span>
+      </div>
+
+      <div class="field-label" style="margin-top:18px;">Endpoints disponibles</div>
+      <div class="endpoints-list">
+        <div class="endpoint-row"><span class="ep-method get">GET</span><span class="mono ep-path">/api/v1/health</span></div>
+        <div class="endpoint-row"><span class="ep-method post">POST</span><span class="mono ep-path">/api/v1/images/upload</span></div>
+        <div class="endpoint-row"><span class="ep-method get">GET</span><span class="mono ep-path">/api/v1/batches/&lt;id&gt;</span></div>
+        <div class="endpoint-row"><span class="ep-method get">GET</span><span class="mono ep-path">/api/v1/images?fit=high&limit=20</span></div>
+        <div class="endpoint-row"><span class="ep-method get">GET</span><span class="mono ep-path">/api/v1/images/&lt;filename&gt;</span></div>
+        <div class="endpoint-row"><span class="ep-method post">POST</span><span class="mono ep-path">/api/v1/images/&lt;filename&gt;/reindex</span></div>
+      </div>
+
+      <div class="field-label" style="margin-top:18px;">Exemple curl (upload + indexation)</div>
+      <pre class="codeblock"><code>curl -X POST http://localhost:5000/api/v1/images/upload \
+  -H "Authorization: Bearer cmp_TA_CLE" \
+  -F "files=@photo1.jpg" \
+  -F "files=@photo2.png"</code></pre>
+
+      <div class="field-label" style="margin-top:18px;">Exemple Python</div>
+      <pre class="codeblock"><code>import requests
+KEY = "cmp_TA_CLE"
+r = requests.post(
+    "http://localhost:5000/api/v1/images/upload",
+    headers={"Authorization": f"Bearer {KEY}"},
+    files=[("files", open("photo.jpg", "rb"))],
+)
+print(r.json())  # {"ok": true, "saved": [...], "batch_id": 7, ...}</code></pre>
+    </div>
+  </div>
+
+</div>
+
+<style>
+  .card.is-revoked { opacity: 0.55; background: var(--cream); }
+
+  .endpoints-list { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+  .endpoint-row {
+    display:flex; align-items:center; gap:10px;
+    padding:6px 10px; background: var(--cream);
+    border-radius:6px; border:1px solid var(--hairline);
+  }
+  .ep-method {
+    display:inline-block; padding:1px 6px; border-radius:4px;
+    font-size:10px; font-weight:600; letter-spacing:0.04em;
+    color:#fff; min-width:38px; text-align:center;
+  }
+  .ep-method.get { background: #2a7a3f; }
+  .ep-method.post { background: var(--burgundy); }
+  .ep-path { font-size:12px; color: var(--ink); }
+
+  .codeblock {
+    background: #1e1e1e; color: #e6e6e6;
+    padding: 14px 16px; border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px; line-height: 1.55;
+    overflow-x: auto; margin: 8px 0 0 0;
+    white-space: pre;
+  }
+</style>
+
+<script>
+  function copyNewKey(btn) {
+    const code = document.getElementById('new-key-value');
+    if (!code) return;
+    navigator.clipboard.writeText(code.textContent.trim()).then(() => {
+      const old = btn.textContent;
+      btn.textContent = 'Copié ✓';
+      setTimeout(() => btn.textContent = old, 1800);
+    });
+  }
+</script>
+
+{% endblock %}

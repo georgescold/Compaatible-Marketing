@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Cockpit Compaatible{% endblock %}
+{% block crumb %}Dashboard{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ url_for('tweets.index') }}" class="btn primary">
+    Nouveau run
+    <svg class="arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+  </a>
+{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Cockpit local · {{ metrics.runs_this_month }} run(s) ce mois</span>
+    <h1>Dashboard</h1>
+    <p class="sub">État du cockpit, métriques de production, dernières activités. Lance un nouveau run depuis Tweets ou indexe le corpus depuis Images.</p>
+  </div>
+  <div class="row gap-md">
+    {% if db_ok %}
+      <span class="status"><span class="dot ok"></span><span class="status-label">DB connectée</span></span>
+    {% else %}
+      <span class="status"><span class="dot warn"></span><span class="status-label">DB à configurer</span></span>
+    {% endif %}
+    {% if api_key_set %}
+      <span class="status"><span class="dot ok"></span><span class="status-label">API key</span></span>
+    {% else %}
+      <span class="status"><span class="dot warn"></span><span class="status-label">API manquante</span></span>
+    {% endif %}
+  </div>
+</header>
+
+{# ─────────────────────── METRICS ─────────────────────── #}
+<section class="grid grid-3 mb-lg">
+
+  <div class="card metric">
+    <div class="label">Tweets générés</div>
+    <div class="value">{{ '{:,}'.format(metrics.tweets_total).replace(',', ' ') }}</div>
+    <div class="delta {{ metrics.tweets_delta.direction }}">
+      <span class="arrow">{% if metrics.tweets_delta.direction == 'up' %}↑{% elif metrics.tweets_delta.direction == 'down' %}↓{% else %}·{% endif %}</span>
+      <span>{{ metrics.tweets_delta.text }}</span>
+    </div>
+  </div>
+
+  <div class="card metric">
+    <div class="label">Images indexées</div>
+    <div class="value">{{ metrics.images_total }}<span class="unit">/ {{ metrics.images_on_disk }}</span></div>
+    <div class="delta {% if metrics.images_pct >= 100 %}up{% endif %}">
+      <span class="arrow">{% if metrics.images_pct >= 100 %}↑{% else %}·{% endif %}</span>
+      <span>{{ metrics.images_pct }}% du corpus annoté</span>
+    </div>
+  </div>
+
+  <div class="card metric">
+    <div class="label">Coût API total</div>
+    <div class="value">${{ '%.3f'|format(metrics.cost_total) }}</div>
+    <div class="delta {% if metrics.cost_7d > 0 %}up{% endif %}">
+      <span class="arrow">{% if metrics.cost_7d > 0 %}↑{% else %}·{% endif %}</span>
+      <span>${{ '%.3f'|format(metrics.cost_7d) }} sur 7j</span>
+    </div>
+  </div>
+
+</section>
+
+{# ─────────────────────── PIPELINES + ACTIVITY ─────────────────────── #}
+<section class="grid grid-main-aside mb-lg">
+
+  {# Pipelines list #}
+  <div>
+    <div class="section-row">
+      <h2 class="section-title">Pipelines</h2>
+      <span class="section-meta">3 pipelines disponibles</span>
+    </div>
+
+    <div class="stack stack-sm">
+
+      <a href="{{ url_for('tweets.index') }}" class="card hoverable row gap-md">
+        <div class="row-icon">TW</div>
+        <div class="flex-1">
+          <div class="card-title">Tweets</div>
+          <div class="card-sub">Reverse-engineer un compte source, génère une persona féminine unique, adapte le corpus au ton Compaatible.</div>
+        </div>
+        <div class="text-xs muted shrink-0">{{ metrics.tweets_total }} tweets · {{ metrics.personas_total }} personas</div>
+      </a>
+
+      <a href="{{ url_for('images.index') }}" class="card hoverable row gap-md">
+        <div class="row-icon">IM</div>
+        <div class="flex-1">
+          <div class="card-title">Images</div>
+          <div class="card-sub">Indexer le corpus via Vision API : description, émotions, fit Compaatible, avatars cibles.</div>
+        </div>
+        <div class="text-xs muted shrink-0">{{ metrics.images_total }} / {{ metrics.images_on_disk }}</div>
+      </a>
+
+      <a href="{{ url_for('knowledge.index') }}" class="card hoverable row gap-md">
+        <div class="row-icon">KB</div>
+        <div class="flex-1">
+          <div class="card-title">Knowledge</div>
+          <div class="card-sub">7 livres copywriting et Master KB, plus l'index des 11 avatars. Injecté automatiquement dans les pipelines.</div>
+        </div>
+        <div class="text-xs muted shrink-0">{{ kb_files_count }} fichiers</div>
+      </a>
+
+    </div>
+  </div>
+
+  {# Activity feed #}
+  <div>
+    <div class="section-row">
+      <h2 class="section-title">Activité récente</h2>
+      <span class="section-meta">{{ activity|length }} dernier(s)</span>
+    </div>
+
+    <div class="card">
+      {% if activity %}
+        <div class="feed">
+          {% for ev in activity %}
+            <div class="feed-item">
+              <span class="dot {{ ev.dot }}"></span>
+              <div class="text">{{ ev.text }}</div>
+              <div class="time">{{ ev.ts.strftime('%d/%m %H:%M') if ev.ts else '—' }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="stack" style="text-align:center; padding: 24px 8px;">
+          <div class="muted text-sm">Pas encore d'activité.</div>
+          <div class="muted text-xs" style="margin-top:6px;">Upload un CSV de tweets sources pour démarrer un run.</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</section>
+
+{# ─────────────────────── CONFIGURATION ─────────────────────── #}
+<section class="mb-lg">
+  <div class="section-row">
+    <h2 class="section-title">Configuration</h2>
+    <a href="{{ url_for('settings.index') }}" class="text-xs text-burgundy" style="letter-spacing:0.14em; text-transform:uppercase; font-weight:500;">Modifier →</a>
+  </div>
+
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <tbody>
+        <tr>
+          <td style="width: 220px;"><span class="field-label">Traduction</span></td>
+          <td><span class="tag">{{ settings.model_translation }}</span></td>
+          <td class="dim">Haiku recommandé · ES/EN → FR rapide</td>
+        </tr>
+        <tr>
+          <td><span class="field-label">Analyse persona</span></td>
+          <td><span class="tag">{{ settings.model_analysis }}</span></td>
+          <td class="dim">Détecte mécanismes du compte source et crée la persona</td>
+        </tr>
+        <tr>
+          <td><span class="field-label">Copywriting</span></td>
+          <td><span class="tag">{{ settings.model_adaptation }}</span></td>
+          <td class="dim">Sonnet 4.6 par défaut · qualité éditoriale</td>
+        </tr>
+        <tr>
+          <td><span class="field-label">Vision (images)</span></td>
+          <td><span class="tag">{{ settings.model_vision }}</span></td>
+          <td class="dim">Annotation des images du corpus</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% endblock %}

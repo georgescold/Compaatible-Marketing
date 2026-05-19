@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Tweets · Cockpit Compaatible{% endblock %}
+{% block crumb %}Tweets{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Pipeline · Reverse-engineering</span>
+    <h1>Pipeline Tweets</h1>
+    <p class="sub">Upload un CSV scrappé d'un compte qui marche. Le cerveau identifie ses mécanismes, crée une persona féminine unique, et génère un corpus Compaatible original au format Cortex.</p>
+  </div>
+</header>
+
+{% if not api_key_set %}
+<div class="alert warn mb-md">
+  <span class="dot warn"></span>
+  <span>
+    <strong>Clé API Anthropic non configurée.</strong>
+    Va dans <a href="{{ url_for('settings.index') }}" class="text-burgundy" style="font-weight:500; text-decoration:underline;">Settings</a> pour la coller avant de lancer un run.
+  </span>
+</div>
+{% endif %}
+
+{# ───────────────── Upload form ───────────────── #}
+<section class="card mb-lg">
+  <div class="card-header">
+    <div>
+      <h2 class="card-title">Nouveau run</h2>
+      <div class="card-sub">Tu es redirigé instantanément vers une page de suivi en temps réel. Le pipeline tourne en arrière-plan : tu peux fermer l'onglet et revenir plus tard, le run continue.</div>
+    </div>
+  </div>
+
+  <form method="post" action="{{ url_for('tweets.upload') }}" enctype="multipart/form-data" class="stack stack-md">
+
+    <div class="field">
+      <label class="field-label">Fichier CSV source</label>
+      <input type="file" name="csv_file" accept=".csv" required class="file-input">
+      <p class="field-help">Le CSV doit avoir au minimum une colonne <code>content</code>, <code>text</code> ou <code>tweet</code>. Les colonnes stats (likes, retweets, views, engagement_rate, handle, url) sont utilisées pour le reverse-engineering.</p>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Limite (optionnel, pour preview rapide)</label>
+      <input type="number" name="max_tweets" placeholder="50" min="10" max="5000" class="input w-sm">
+      <p class="field-help">Limiter à 50 tweets sources permet de valider la persona et la qualité en ~30 secondes pour ~$0.10 avant de lancer le full run.</p>
+    </div>
+
+    <div class="row-end">
+      <button type="submit" class="btn primary lg" {% if not api_key_set %}disabled{% endif %}>
+        Lancer le pipeline
+        <svg class="arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+  </form>
+</section>
+
+{# ───────────────── Runs history ───────────────── #}
+<section>
+  <div class="section-row">
+    <h2 class="section-title">Runs précédents</h2>
+    {% if runs %}<span class="section-meta">{{ runs|length }} run(s)</span>{% endif %}
+  </div>
+
+  {% if runs %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th style="width:60px;">#</th>
+          <th>CSV source</th>
+          <th>Persona</th>
+          <th>Status</th>
+          <th class="num">Source → Output</th>
+          <th class="num">Threads</th>
+          <th class="num">Coût</th>
+          <th>Date</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td class="mono dim">{{ r.id }}</td>
+          <td>
+            <div class="row-name">{{ r.source_csv_name[:40] }}</div>
+            {% if r.source_handle %}<div class="row-sub mono">@{{ r.source_handle }}</div>{% endif %}
+          </td>
+          <td>
+            {% if r.persona_first_name %}
+              <a href="{{ url_for('personas.detail', persona_id=r.persona_id) if r.persona_id else '#' }}" class="text-burgundy" style="font-weight:500; text-decoration:none;">
+                <div class="row-name">{{ r.persona_first_name }}</div>
+                <div class="row-sub">Avatar {{ r.persona_avatar }}</div>
+              </a>
+            {% else %}
+              <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.status == 'completed' %}
+              <span class="pill ok">{{ r.status }}</span>
+            {% elif r.status == 'completed_partial' %}
+              <span class="pill warn" title="Run interrompu (ex: quota API épuisé). Voir le détail.">partial</span>
+            {% elif r.status == 'running' %}
+              <span class="pill">{{ r.status }} · {{ r.current_stage }}</span>
+            {% elif r.status == 'failed' %}
+              <span class="pill err">{{ r.status }}</span>
+            {% elif r.status == 'paused' %}
+              <span class="pill warn">{{ r.status }}</span>
+            {% else %}
+              <span class="pill muted">{{ r.status }}</span>
+            {% endif %}
+          </td>
+          <td class="num">{{ r.source_tweets_count or '?' }} → {{ r.output_tweets_count or '?' }}</td>
+          <td class="num">{{ r.threads_count or 0 }}</td>
+          <td class="num">{% if r.cost_usd %}${{ "%.3f"|format(r.cost_usd) }}{% else %}—{% endif %}</td>
+          <td class="dim">{{ r.started_at.strftime('%Y-%m-%d %H:%M') if r.started_at else '' }}</td>
+          <td>
+            <div class="row" style="gap:14px; align-items:center;">
+              <a href="{{ url_for('tweets.show_run', run_id=r.id) }}" class="text-burgundy" style="font-weight:500;">Ouvrir →</a>
+              {% if r.status != 'running' %}
+              <form method="post" action="{{ url_for('tweets.delete_run', run_id=r.id) }}"
+                    onsubmit="return confirm('Supprimer le run #{{ r.id }} et ses tweets ?\n\nIrréversible. Coche la case persona seulement si tu veux aussi la supprimer en cas d\'orphelinage.');"
+                    style="display:inline;">
+                <label style="cursor:pointer; font-size:11px; color:var(--muted); display:inline-flex; align-items:center; gap:3px; margin-right:6px;" title="Supprime aussi la persona si plus aucun run ne la référence">
+                  <input type="checkbox" name="also_delete_persona" value="1" style="margin:0;">
+                  <span>+persona</span>
+                </label>
+                <button type="submit" class="btn ghost sm danger" title="Supprimer ce run et ses tweets"
+                        style="padding:4px 8px; font-size:12px;">×</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="em-title">Aucun run pour l'instant.</div>
+    <div class="em-sub">Upload un CSV ci-dessus pour démarrer ton premier reverse-engineering.</div>
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}

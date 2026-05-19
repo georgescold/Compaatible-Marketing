@@ -1,0 +1,435 @@
+{% extends "base.html" %}
+{% block title %}Settings · Cockpit Compaatible{% endblock %}
+{% block crumb %}Settings{% endblock %}
+
+{% block content %}
+
+<style>
+  /* Spinner + indicateur htmx pour les boutons de test (clé API, Cortex) */
+  .htmx-indicator {
+    display: none;
+    align-items: center;
+    gap: 6px;
+  }
+  .htmx-request .htmx-indicator,
+  .htmx-indicator.htmx-request {
+    display: inline-flex;
+  }
+  .spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--hairline, #EFE6E9);
+    border-top-color: var(--burgundy, #8B2D4A);
+    border-radius: 50%;
+    animation: spinner-rot 0.8s linear infinite;
+  }
+  @keyframes spinner-rot {
+    to { transform: rotate(360deg); }
+  }
+</style>
+
+
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Système · LLM Providers</span>
+    <h1>Settings</h1>
+    <p class="sub">Clés API (Anthropic + Gemini) et choix du modèle par étape du pipeline. Les valeurs sont stockées en DB Supabase et jamais affichées en clair.</p>
+  </div>
+</header>
+
+<div class="max-w-md">
+
+  <form method="post" action="{{ url_for('settings.save') }}" class="card stack stack-md mb-md">
+
+    <div class="field">
+      <label class="field-label">Clé API Anthropic</label>
+
+      {# État actuel : clé enregistrée affichée masquée + bouton test direct #}
+      {% if settings.anthropic_api_key %}
+      <div class="alert ok mb-sm" style="margin-bottom:10px;">
+        <span class="dot ok"></span>
+        <span style="display:flex; flex-wrap:wrap; align-items:center; gap:10px;">
+          <strong>Clé enregistrée :</strong>
+          <span class="mono" style="font-size:13px;">{{ masked_api_key }}</span>
+          <button type="button" class="btn ghost sm"
+                  hx-post="{{ url_for('settings.test_key_inline') }}"
+                  hx-vals='{"source": "saved"}'
+                  hx-target="#api-test-result"
+                  hx-swap="innerHTML"
+                  hx-indicator="#api-test-indicator">
+            Tester la clé enregistrée
+          </button>
+          <button type="submit" form="clear-anthropic-form"
+                  onclick="return confirm('Retirer la cle Anthropic ? Tu ne pourras pas la recuperer, il faudra la ressaisir.')"
+                  class="btn ghost sm" style="color:var(--burgundy, #8B2D4A);">
+            Retirer
+          </button>
+          <span id="api-test-indicator" class="htmx-indicator muted text-xs">
+            <span class="spinner"></span> test en cours…
+          </span>
+        </span>
+      </div>
+      {% else %}
+      <div class="alert warn mb-sm" style="margin-bottom:10px;">
+        <span class="dot warn"></span>
+        <span>Aucune clé enregistrée. Saisis-en une et clique sur <strong>Sauvegarder</strong> en bas.</span>
+      </div>
+      {% endif %}
+
+      {# Saisie d'une nouvelle clé / mise à jour #}
+      <div class="field-row" style="gap:8px;">
+        <input
+          type="password"
+          name="anthropic_api_key"
+          placeholder="{% if settings.anthropic_api_key %}Nouvelle clé (laisser vide pour conserver l'actuelle){% else %}sk-ant-api03-...{% endif %}"
+          class="input flex-1"
+          autocomplete="off"
+        >
+        <button type="button" class="btn"
+                hx-post="{{ url_for('settings.test_key_inline') }}"
+                hx-include="closest .field"
+                hx-vals='{"source": "input"}'
+                hx-target="#api-test-result"
+                hx-swap="innerHTML"
+                hx-indicator="#api-test-indicator">
+          Tester la nouvelle clé
+        </button>
+      </div>
+
+      {# Zone de résultat des tests (inline, vidée à chaque test) #}
+      <div id="api-test-result" style="margin-top:8px;"></div>
+
+      <p class="field-help">
+        Récupère ta clé sur <a href="https://console.anthropic.com/settings/keys" target="_blank" class="text-burgundy" style="font-weight:500; text-decoration:underline;">console.anthropic.com</a>.
+        Stockée en DB Supabase (chiffrement Postgres standard).<br>
+        <em>Le test envoie un ping à Haiku 4.5 (max_tokens=10, coût ~$0.00001).</em>
+        <strong>Important :</strong> le bouton « Tester la nouvelle clé » ne sauvegarde pas — clique sur
+        <strong>Sauvegarder</strong> en bas du formulaire pour enregistrer.
+      </p>
+    </div>
+
+    <hr>
+
+    <div class="field">
+      <label class="field-label">Clé API Gemini (Google)</label>
+
+      {% if settings.gemini_api_key %}
+      <div class="alert ok mb-sm" style="margin-bottom:10px;">
+        <span class="dot ok"></span>
+        <span style="display:flex; flex-wrap:wrap; align-items:center; gap:10px;">
+          <strong>Clé enregistrée :</strong>
+          <span class="mono" style="font-size:13px;">{{ masked_gemini_key }}</span>
+          <button type="button" class="btn ghost sm"
+                  hx-post="{{ url_for('settings.test_gemini_key_inline') }}"
+                  hx-vals='{"source": "saved"}'
+                  hx-target="#gemini-test-result"
+                  hx-swap="innerHTML"
+                  hx-indicator="#gemini-test-indicator">
+            Tester la clé enregistrée
+          </button>
+          <button type="submit" form="clear-gemini-form"
+                  onclick="return confirm('Retirer la cle Gemini ? Tu ne pourras pas la recuperer, il faudra la ressaisir.')"
+                  class="btn ghost sm" style="color:var(--burgundy, #8B2D4A);">
+            Retirer
+          </button>
+          <span id="gemini-test-indicator" class="htmx-indicator muted text-xs">
+            <span class="spinner"></span> test en cours…
+          </span>
+        </span>
+      </div>
+      {% else %}
+      <div class="alert warn mb-sm" style="margin-bottom:10px;">
+        <span class="dot warn"></span>
+        <span>Aucune clé Gemini enregistrée. Optionnelle (sert uniquement si tu choisis un modèle <span class="mono">gemini-*</span> ci-dessous).</span>
+      </div>
+      {% endif %}
+
+      <div class="field-row" style="gap:8px;">
+        <input
+          type="password"
+          name="gemini_api_key"
+          placeholder="{% if settings.gemini_api_key %}Nouvelle clé (laisser vide pour conserver l'actuelle){% else %}AIzaSy...{% endif %}"
+          class="input flex-1"
+          autocomplete="off"
+        >
+        <button type="button" class="btn"
+                hx-post="{{ url_for('settings.test_gemini_key_inline') }}"
+                hx-include="closest .field"
+                hx-vals='{"source": "input"}'
+                hx-target="#gemini-test-result"
+                hx-swap="innerHTML"
+                hx-indicator="#gemini-test-indicator">
+          Tester la nouvelle clé
+        </button>
+      </div>
+
+      <div id="gemini-test-result" style="margin-top:8px;"></div>
+
+      <p class="field-help">
+        Récupère ta clé sur <a href="https://aistudio.google.com/apikey" target="_blank" class="text-burgundy" style="font-weight:500; text-decoration:underline;">aistudio.google.com/apikey</a>.
+        Stockée en DB Supabase.<br>
+        <em>Le test envoie un ping à Gemini 3 Pro (max_output_tokens=10, coût ~$0.00001).</em>
+        Gemini 3.1 Pro : ~25% moins cher que Sonnet 4.6 à qualité équivalente sur du copywriting FR.
+      </p>
+    </div>
+
+    <hr>
+
+    <div>
+      <h2 class="card-title mb-sm">Intégration Cortex (envoi automatique des CSV)</h2>
+      <p class="field-help mb-md">Permet d'envoyer les CSV produits directement vers ton instance Cortex (Hub Fichiers) en un clic depuis la page d'un run. Le token est créé dans l'UI Cortex sur <span class="mono">/parametres/api</span> (format <span class="mono">cortex_live_xxx</span>, affiché 1 seule fois).</p>
+
+      <div class="field">
+        <label class="field-label">URL de base Cortex</label>
+        <input
+          type="text"
+          name="cortex_base_url"
+          placeholder="https://cortex.vercel.app"
+          value="{{ settings.cortex_base_url or '' }}"
+          class="input"
+          autocomplete="off"
+        >
+        <p class="field-help">Sans slash final. Le cockpit y ajoute <span class="mono">/api/v1/...</span></p>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Token API Cortex</label>
+
+        {% if settings.cortex_api_token %}
+        <div class="alert ok mb-sm" style="margin-bottom:10px;">
+          <span class="dot ok"></span>
+          <span style="display:flex; flex-wrap:wrap; align-items:center; gap:10px;">
+            <strong>Token enregistré :</strong>
+            <span class="mono" style="font-size:13px;">{{ masked_cortex_token }}</span>
+            <button type="button" class="btn ghost sm"
+                    hx-post="{{ url_for('settings.test_cortex_inline') }}"
+                    hx-target="#cortex-test-result"
+                    hx-swap="innerHTML"
+                    hx-indicator="#cortex-test-indicator">
+              Tester la config enregistrée
+            </button>
+            <button type="submit" form="clear-cortex-form"
+                    onclick="return confirm('Retirer le token Cortex ? Tu ne pourras pas le recuperer, il faudra le ressaisir.')"
+                    class="btn ghost sm" style="color:var(--burgundy, #8B2D4A);">
+              Retirer
+            </button>
+            <span id="cortex-test-indicator" class="htmx-indicator muted text-xs">
+              <span class="spinner"></span> test en cours…
+            </span>
+          </span>
+        </div>
+        {% endif %}
+
+        <div class="field-row" style="gap:8px;">
+          <input
+            type="password"
+            name="cortex_api_token"
+            placeholder="{% if settings.cortex_api_token %}Nouveau token (laisser vide pour conserver l'actuel){% else %}cortex_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx{% endif %}"
+            class="input flex-1"
+            autocomplete="off"
+          >
+          <button type="button" class="btn"
+                  hx-post="{{ url_for('settings.test_cortex_inline') }}"
+                  hx-include="[name='cortex_api_token'],[name='cortex_base_url']"
+                  hx-target="#cortex-test-result"
+                  hx-swap="innerHTML"
+                  hx-indicator="#cortex-test-indicator">
+            Tester ces valeurs
+          </button>
+        </div>
+
+        <div id="cortex-test-result" style="margin-top:8px;"></div>
+
+        <p class="field-help">
+          Stocké en DB Supabase. Le bouton « Tester ces valeurs » enregistre temporairement l'URL/token
+          saisis (si non vides) puis appelle <span class="mono">GET /api/v1/ping</span>.
+        </p>
+      </div>
+    </div>
+
+    <hr>
+
+    <div>
+      <h2 class="card-title mb-sm">Modèles par tâche</h2>
+      <p class="field-help mb-md">Choix du modèle pour chaque étape du pipeline. Le provider (Anthropic ou Google) est routé automatiquement selon le prefix du model id. Tu peux changer à tout moment.</p>
+
+      {# Tableau comparatif des prix. Source de verite : llm_client.PRICING.
+         Run de reference = 50 tweets sources, ~50k tokens system caches + 30k user fresh + 13.5k output. #}
+      <style>
+        .pricing-grid {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+          margin-bottom: 16px;
+          background: var(--card, #FFFFFF);
+          border: 1px solid var(--hairline, #EFE6E9);
+          border-radius: 6px;
+          overflow: hidden;
+        }
+        .pricing-grid th, .pricing-grid td {
+          padding: 8px 10px;
+          text-align: left;
+          border-bottom: 1px solid var(--hairline, #EFE6E9);
+        }
+        .pricing-grid th {
+          background: var(--bg-soft, #FAF5F7);
+          font-weight: 600;
+          font-size: 12px;
+          color: var(--muted, #7A6B72);
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+        }
+        .pricing-grid tr:last-child td { border-bottom: none; }
+        .pricing-grid td.num { font-variant-numeric: tabular-nums; font-family: ui-monospace, "Cascadia Code", Menlo, monospace; }
+        .pricing-grid td.run-cost { font-weight: 600; color: var(--burgundy, #8B2D4A); }
+        .pricing-grid tr.selected { background: rgba(139, 45, 74, 0.06); }
+        .pricing-grid tr.selected td:first-child::before { content: "▸ "; color: var(--burgundy, #8B2D4A); font-weight: bold; }
+        .live-price {
+          display: inline-block;
+          margin-left: 10px;
+          font-size: 12px;
+          font-family: ui-monospace, "Cascadia Code", Menlo, monospace;
+          color: var(--muted, #7A6B72);
+        }
+        .live-price strong { color: var(--burgundy, #8B2D4A); }
+      </style>
+      <table class="pricing-grid">
+        <thead>
+          <tr>
+            <th>Modèle</th>
+            <th>Input / 1M</th>
+            <th>Output / 1M</th>
+            <th>Cache (read / write)</th>
+            <th>Run réf. (50 tweets)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in models %}
+            {% set p = pricing.get(m.id) %}
+            {% set run_cost = typical_run_50_tweets.get(m.id) %}
+            <tr data-model-row="{{ m.id }}">
+              <td>{{ m.label }}</td>
+              <td class="num">{% if p %}${{ '%.2f'|format(p.input) }}{% else %}—{% endif %}</td>
+              <td class="num">{% if p %}${{ '%.2f'|format(p.output) }}{% else %}—{% endif %}</td>
+              <td class="num">{% if p %}${{ '%.2f'|format(p.cache_read) }} / ${{ '%.2f'|format(p.cache_write) }}{% else %}—{% endif %}</td>
+              <td class="num run-cost">{% if run_cost is not none %}~${{ '%.3f'|format(run_cost) }}{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="field-help mb-md" style="font-size:12px;">
+        Run référence : 50 tweets sources, ~50k tokens de contexte cachés + 30k tokens fresh + 13.5k tokens d'output sur 3 chunks.
+        Avec prompt caching activé (Anthropic) ou Context Caching (Gemini), le système ne paie le contenu cacheable qu'une fois par run.
+      </p>
+
+      <div class="stack stack-md">
+        {% for field, label, hint, allow_gemini in [
+          ('model_translation', 'Traduction (ES → FR, EN → FR, etc.)', 'Haiku 4.5 recommandé : rapide, peu cher, suffisant.', True),
+          ('model_analysis', 'Analyse et détection persona', 'Haiku 4.5 ou Sonnet 4.6 selon précision voulue. Gemini 3.1 Pro = bon compromis qualité/prix.', True),
+          ('model_adaptation', 'Adaptation copywriting (cœur du pipeline)', 'Sonnet 4.6 par défaut. Gemini 3.1 Pro ~25% moins cher. Opus 4.7 pour la qualité maximale (4x plus cher).', True),
+          ('model_vision', 'Annotation images (Vision)', 'Haiku 4.5 recommandé pour le coût. Vision pas encore migrée pour Gemini → modèles Anthropic uniquement.', False),
+        ] %}
+          <div class="field">
+            <label class="field-label">{{ label }} <span class="live-price" data-for-field="{{ field }}"></span></label>
+            <select name="{{ field }}" class="select" data-pricing-select="1">
+              {% for m in models %}
+                {% if allow_gemini or not m.id.startswith('gemini') %}
+                <option value="{{ m.id }}" {% if settings[field] == m.id %}selected{% endif %}>{{ m.label }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <p class="field-help">{{ hint }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="row-end">
+      <a href="{{ url_for('dashboard.index') }}" class="btn ghost">Annuler</a>
+      <button type="submit" class="btn primary">Sauvegarder</button>
+    </div>
+
+  </form>
+
+  <div class="alert warn">
+    <span class="dot warn"></span>
+    <span>
+      <strong>Note coûts.</strong> Le tableau ci-dessus montre les prix bruts /1M tokens et le coût estimé d'un run de référence (50 tweets). Le coût réel d'un batch varie avec le nombre de tweets sources, la taille de la persona/playbook, et la longueur des outputs. Les ratios entre modèles restent valides à toute échelle.
+    </span>
+  </div>
+
+</div>
+
+{# Données pricing exposées au JS pour les live-prices a cote des dropdowns.
+   Source de verite : llm_client.PRICING (Anthropic + Gemini fusionnes). #}
+<script id="pricing-data" type="application/json">
+{
+  {% for m_id, p in pricing.items() %}
+    "{{ m_id }}": {
+      "input": {{ p.input }},
+      "output": {{ p.output }},
+      "cache_read": {{ p.cache_read }},
+      "cache_write": {{ p.cache_write }},
+      "run_50": {{ typical_run_50_tweets.get(m_id) or 'null' }}
+    }{% if not loop.last %},{% endif %}
+  {% endfor %}
+}
+</script>
+<script>
+  (function() {
+    const pricing = JSON.parse(document.getElementById("pricing-data").textContent);
+    const selects = document.querySelectorAll("select[data-pricing-select]");
+
+    function fmtUsd(v, digits) {
+      if (v === null || v === undefined) return "—";
+      return "$" + Number(v).toFixed(digits === undefined ? 2 : digits);
+    }
+
+    function updateOne(sel) {
+      const field = sel.name;
+      const modelId = sel.value;
+      const p = pricing[modelId];
+      const label = document.querySelector('.live-price[data-for-field="' + field + '"]');
+      if (!label) return;
+      if (!p) {
+        label.innerHTML = '<span style="color:#aaa;">(prix inconnu)</span>';
+      } else {
+        label.innerHTML =
+          'in <strong>' + fmtUsd(p.input) + '</strong>/1M · ' +
+          'out <strong>' + fmtUsd(p.output) + '</strong>/1M · ' +
+          'cache R <strong>' + fmtUsd(p.cache_read) + '</strong> · ' +
+          'run réf. <strong>' + fmtUsd(p.run_50, 3) + '</strong>';
+      }
+      // Mettre en surbrillance la ligne du tableau qui correspond a CE dropdown.
+      // Plusieurs dropdowns peuvent selectionner des modeles differents → on remet
+      // toutes les rows en non-selected, puis on selectionne celles utilisees.
+      document.querySelectorAll('.pricing-grid tr[data-model-row]').forEach(tr => tr.classList.remove('selected'));
+      selects.forEach(s => {
+        const row = document.querySelector('.pricing-grid tr[data-model-row="' + s.value + '"]');
+        if (row) row.classList.add('selected');
+      });
+    }
+
+    selects.forEach(sel => {
+      sel.addEventListener("change", () => updateOne(sel));
+      updateOne(sel);
+    });
+  })();
+</script>
+
+{# Mini-formulaires standalone pour les boutons "Retirer". Pas nestables dans le form
+   principal — les boutons les ciblent via l'attribut form="...". #}
+<form id="clear-anthropic-form" method="post" action="{{ url_for('settings.clear_credential') }}" style="display:none">
+  <input type="hidden" name="field" value="anthropic_api_key">
+</form>
+<form id="clear-gemini-form" method="post" action="{{ url_for('settings.clear_credential') }}" style="display:none">
+  <input type="hidden" name="field" value="gemini_api_key">
+</form>
+<form id="clear-cortex-form" method="post" action="{{ url_for('settings.clear_credential') }}" style="display:none">
+  <input type="hidden" name="field" value="cortex_api_token">
+</form>
+
+{% endblock %}

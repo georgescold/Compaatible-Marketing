@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Knowledge · Cockpit Compaatible{% endblock %}
+{% block crumb %}Knowledge{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Base de connaissance · Injection automatique</span>
+    <h1>Knowledge Base</h1>
+    <p class="sub">7 livres digérés et Master KB. Cette ressource est injectée automatiquement (avec prompt caching) dans le cerveau du pipeline tweets et images. Tu peux aussi y chercher manuellement pour t'inspirer.</p>
+  </div>
+</header>
+
+{# ───────────────── Recherche ───────────────── #}
+<section class="card mb-lg">
+  <form method="get" action="{{ url_for('knowledge.index') }}" class="field-row">
+    <div class="field flex-1">
+      <label class="field-label">Recherche full-text</label>
+      <input type="text" name="q" value="{{ query }}" placeholder="ex: hook, awareness, big idea, persona…" class="input">
+    </div>
+    <div class="field">
+      <label class="field-label">Fichier</label>
+      <select name="file" class="select" style="min-width:220px;">
+        <option value="">— tous —</option>
+        {% for f in files %}
+        <option value="{{ f.name }}" {% if file_filter == f.name %}selected{% endif %}>{{ f.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn primary">Chercher</button>
+  </form>
+</section>
+
+{# ───────────────── Résultats ───────────────── #}
+{% if query %}
+<section>
+  <div class="section-row">
+    <h2 class="section-title">
+      {{ results|length }} résultat(s) pour <span class="tag" style="font-size:13px; padding:4px 10px; margin-left:6px;">{{ query }}</span>
+    </h2>
+  </div>
+
+  {% if grouped %}
+    <div class="stack stack-md">
+      {% for filename, matches in grouped.items() %}
+      <div class="tbl-wrap">
+        <div class="row-between" style="padding: 14px 22px; background: var(--cream); border-bottom: 1px solid var(--hairline);">
+          <span class="mono" style="font-size:12.5px; color:var(--ink-soft);">{{ filename }}</span>
+          <span class="text-xs muted">{{ matches|length }} match(es)</span>
+        </div>
+        <div>
+          {% for m in matches[:20] %}
+          <div style="padding: 14px 22px; border-bottom: 1px solid var(--hairline); font-size:13.5px; line-height:1.65;">
+            <div class="text-xs muted" style="margin-bottom:4px;">Ligne {{ m.line }}</div>
+            <div>
+              <span class="muted">…{{ m.snippet_before }}</span><mark>{{ m.match }}</mark><span class="muted">{{ m.snippet_after }}…</span>
+            </div>
+          </div>
+          {% endfor %}
+          {% if matches|length > 20 %}
+          <div class="text-xs muted" style="padding: 12px 22px;">…et {{ matches|length - 20 }} match(es) supplémentaires (affine ta recherche pour les voir).</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty">
+      <div class="em-title">Aucun résultat pour "{{ query }}".</div>
+      <div class="em-sub">Essaie un terme plus court ou en anglais (les livres source sont en anglais).</div>
+    </div>
+  {% endif %}
+</section>
+{% endif %}
+
+{# ───────────────── Liste fichiers ───────────────── #}
+{% if not query %}
+<section>
+  <div class="section-row">
+    <h2 class="section-title">Fichiers</h2>
+    <span class="section-meta">{{ files|length }} fichier(s)</span>
+  </div>
+
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Fichier</th>
+          <th class="num">Taille</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in files %}
+        <tr>
+          <td class="mono">
+            <a href="{{ url_for('knowledge.view_file', filename=f.name) }}" class="ink" style="font-weight:500;">{{ f.name }}</a>
+          </td>
+          <td class="num">{{ f.size_kb }} KB</td>
+          <td style="width: 120px;">
+            <a href="{{ url_for('knowledge.view_file', filename=f.name) }}" class="text-burgundy text-xs" style="font-weight:500;">Lire →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-xs muted mt-md">Astuce : pour ouvrir un fichier dans son intégralité, utilise ton éditeur favori sur <code>C:\Users\loysc\Desktop\Compaatible marketing\Knowledges\</code>.</p>
+</section>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,1301 @@
+{% extends "base.html" %}
+{% block title %}Run #{{ run.id }} · {{ run.persona_first_name or 'Persona' }} · Cockpit{% endblock %}
+{% block crumb %}Tweets · Run #{{ run.id }}{% endblock %}
+
+{% block topbar_actions %}{# Actions deplacees plus bas dans une action-bar dediee pour ne plus compresser le topbar. #}{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <a href="{{ url_for('tweets.index') }}" class="text-xs muted" style="display:inline-block; margin-bottom:8px; text-decoration:none;">← Tous les runs</a>
+    <h1>Run #{{ run.id }}</h1>
+    <p class="sub">
+      Source : <span class="ink" style="font-weight:500;">{{ run.source_csv_name }}</span>
+      {% if run.source_handle %} · <span class="mono">@{{ run.source_handle }}</span>{% endif %}
+      {% if run.detected_language %} · langue {{ run.detected_language }}{% endif %}
+      {% if run.max_source_tweets %} · <span class="pill">test sur {{ run.max_source_tweets }} tweets</span>{% endif %}
+      {% if run.parent_run_id %} · <a href="{{ url_for('tweets.show_run', run_id=run.parent_run_id) }}" class="text-burgundy" style="font-weight:500;">← parent #{{ run.parent_run_id }}</a>{% endif %}
+      {% if run.status %} · <span class="pill {% if run.status == 'completed' %}ok{% elif run.status == 'completed_partial' %}warn{% elif run.status == 'failed' %}err{% elif run.status == 'paused' %}warn{% else %}muted{% endif %}">{% if run.status == 'completed_partial' %}partial{% else %}{{ run.status }}{% endif %}</span>{% endif %}
+    </p>
+  </div>
+</header>
+
+{% if run.status == 'paused' %}
+<div class="alert warn mb-lg">
+  <span class="dot warn"></span>
+  <span style="flex:1;">
+    <strong>Run en pause.</strong>
+    {{ run.output_tweets_count or 0 }} tweet(s) déjà sauvegardé(s).
+    Les chunks suivants ne sont pas encore générés.
+  </span>
+  <a href="{{ url_for('tweets.resume_paused_preflight', run_id=run.id) }}" class="btn primary sm">
+    ▶ Reprendre (changer de modèle possible)
+  </a>
+</div>
+{% endif %}
+
+{% if run.status == 'completed_partial' %}
+<div class="alert warn mb-lg">
+  <span class="dot warn"></span>
+  <span style="flex:1;">
+    <strong>Run interrompu.</strong>
+    {{ run.output_tweets_count or 0 }} tweet(s) sauvegardé(s) avant l'arrêt.
+    {% if run.error_message %}<br><span class="muted">{{ run.error_message }}</span>{% endif %}
+    Tu peux relancer plus tard (quand le quota reset) via "Reprendre sur les tweets restants" ou "Prolonger".
+  </span>
+</div>
+{% endif %}
+
+{# ───────────────── Barre d'actions du run (groupes par phase) ───────────────── #}
+<section class="run-actions mb-lg" aria-label="Actions du run">
+
+  {% set is_resumable = run.status in ['completed', 'completed_partial'] %}
+  {% if (run.max_source_tweets and is_resumable and run.archived_csv_path) or (is_resumable and run.persona_first_name) %}
+  <div class="run-actions-group">
+    <div class="run-actions-label">Génération</div>
+    <div class="run-actions-row">
+      {% if run.max_source_tweets and is_resumable and run.archived_csv_path %}
+      <a href="{{ url_for('tweets.full_run_preflight', run_id=run.id) }}" class="btn"
+         title="Affiche d'abord un récapitulatif avec coût estimé et option images.">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Reprendre sur les tweets restants
+      </a>
+      {% endif %}
+
+      {% if is_resumable and run.persona_first_name %}
+      <form method="post" action="{{ url_for('tweets.extend_preflight', run_id=run.id) }}" class="input-group">
+        <label class="input-group-label" for="extend-count-{{ run.id }}">Prolonger de</label>
+        <input id="extend-count-{{ run.id }}" type="number" name="count" min="1" max="2000" step="1" value="100" required
+               class="input-group-input" title="Nombre de posts atomiques (1 thread = 1 post, 1 tweet isolé = 1 post)">
+        <span class="input-group-suffix" title="1 thread = 1 post">posts</span>
+        <button type="submit" class="btn input-group-btn"
+                title="Affiche d'abord un récapitulatif avec coût estimé et option images.">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Continuer
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="run-actions-group">
+    <div class="run-actions-label">Enrichissement</div>
+    <div class="run-actions-row">
+      <form method="post" action="{{ url_for('tweets.match_images', run_id=run.id) }}"
+            data-confirm
+            data-confirm-title="Intégrer les images ?"
+            data-confirm-body="Pour chaque tweet où l'IA a flaggé needs_image=true (champ interne), on cherche la meilleure image dans la base classifiée (fit Compaatible + URL publique) et on remplit media_url.\n\nAucun appel API externe, pur scoring SQL sur les tags."
+            data-confirm-ok="Intégrer"
+            data-async-progress="match-images"
+            data-progress-status-url="{{ url_for('tweets.match_images_status', run_id=run.id) }}">
+        <button type="submit" class="btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Intégrer les images
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="run-actions-group">
+    <div class="run-actions-label">Export</div>
+    <div class="run-actions-row">
+      <a href="{{ url_for('tweets.download', run_id=run.id) }}" class="btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Télécharger CSV Cortex
+      </a>
+      {% if cortex_configured %}
+      {% set default_cortex_filename = 'compaatible_run' ~ run.id ~ '_' ~ (run.persona_first_name or 'unknown') ~ '.csv' %}
+      <form method="post" action="{{ url_for('tweets.send_to_cortex', run_id=run.id) }}"
+            data-confirm
+            data-confirm-title="Envoyer ce CSV vers Cortex ?"
+            data-confirm-body="Le fichier apparaîtra dans Cortex /fichiers avec statut pending. Tu pourras ensuite l'attribuer à une persona depuis l'UI Cortex."
+            data-confirm-ok="Envoyer"
+            data-confirm-input-name="filename"
+            data-confirm-input-label="Nom du fichier dans Cortex"
+            data-confirm-input-default="{{ default_cortex_filename }}"
+            data-confirm-input-hint="Lettres, chiffres, . _ - autorisés. L'extension .csv est ajoutée automatiquement.">
+        <input type="hidden" name="filename" value="">
+        <button type="submit" class="btn primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Envoyer vers Cortex
+        </button>
+      </form>
+      {% else %}
+      <a href="{{ url_for('settings.index') }}" class="btn ghost" title="Configure l'URL + le token Cortex dans /settings pour activer l'envoi direct.">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Configurer Cortex
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if run.status != 'running' %}
+  <div class="run-actions-group">
+    <div class="run-actions-label">Danger</div>
+    <div class="run-actions-row">
+      <form method="post" action="{{ url_for('tweets.delete_run', run_id=run.id) }}"
+            onsubmit="return confirm('Supprimer le run #{{ run.id }} et tous ses tweets ?\n\nCette action est irréversible. La persona « {{ run.persona_first_name or '?' }} » sera supprimée seulement si plus aucun autre run ne la référence (case cochée ci-dessous).');">
+        <label class="row gap-sm" style="margin-bottom:8px; font-size:12px; align-items:center;">
+          <input type="checkbox" name="also_delete_persona" value="1">
+          <span class="muted">Supprimer aussi la persona si elle devient orpheline</span>
+        </label>
+        <button type="submit" class="btn ghost danger" title="Supprime ce run, ses tweets, et éventuellement sa persona.">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          Supprimer ce run
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+</section>
+
+{# ───────── Modal de confirmation in-app (remplace les confirm() natifs) ───────── #}
+<div id="confirm-modal" class="modal-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+  <div class="modal-dialog" role="document">
+    <h3 id="confirm-modal-title" class="modal-title">Confirmer ?</h3>
+    <div id="confirm-modal-body" class="modal-body"></div>
+    <div id="confirm-modal-input-slot"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" data-modal-cancel>Annuler</button>
+      <button type="button" class="btn primary" data-modal-confirm>Confirmer</button>
+    </div>
+  </div>
+</div>
+
+{# ───────── Modal de progression du matching des images (AJAX + polling) ───────── #}
+<div id="match-progress-modal" class="modal-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="match-progress-title">
+  <div class="modal-dialog" role="document">
+    <h3 id="match-progress-title" class="modal-title">Attribution des images…</h3>
+    <div class="modal-body">
+      <div class="match-progress">
+        <div class="match-progress-headline" id="match-progress-headline">Initialisation…</div>
+        <div class="match-progress-bar-wrap">
+          <div class="match-progress-bar-fill indeterminate" id="match-progress-bar"></div>
+        </div>
+        <div class="match-progress-counts" id="match-progress-counts">
+          <span><strong>0</strong> matchés</span>
+          <span><strong>0</strong> sans candidate</span>
+          <span><strong>0</strong> sans brief</span>
+          <span>pool : <strong>—</strong></span>
+        </div>
+        <div class="match-progress-last" id="match-progress-last">En attente du premier tweet…</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn primary" id="match-progress-close" disabled>OK</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ───── Action bar du run ───── */
+  .run-actions {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 16px;
+    background: var(--paper, #fff);
+    border: 1px solid var(--hairline, #EFE6E9);
+    border-radius: 12px;
+  }
+  .run-actions-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+  .run-actions-group + .run-actions-group {
+    padding-left: 16px;
+    border-left: 1px solid var(--hairline, #EFE6E9);
+  }
+  .run-actions-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted, #8B7280);
+    font-weight: 500;
+  }
+  .run-actions-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .run-actions form { display: inline-flex; align-items: center; gap: 0; }
+
+  /* ───── Input group (Prolonger N tweets) ───── */
+  .input-group {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--hairline, #EFE6E9);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--paper, #fff);
+    transition: border-color 180ms ease, box-shadow 180ms ease;
+  }
+  .input-group:focus-within {
+    border-color: var(--burgundy, #6B0F2A);
+    box-shadow: 0 0 0 3px rgba(107,15,42,0.10);
+  }
+  .input-group-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 13px;
+    color: var(--muted, #8B7280);
+    background: rgba(0,0,0,0.02);
+    border-right: 1px solid var(--hairline, #EFE6E9);
+    user-select: none;
+  }
+  .input-group-input {
+    width: 70px;
+    border: none;
+    padding: 0 8px;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: right;
+    background: transparent;
+    outline: none;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .input-group-suffix {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 12px 0 4px;
+    font-size: 13px;
+    color: var(--muted, #8B7280);
+    border-right: 1px solid var(--hairline, #EFE6E9);
+    user-select: none;
+  }
+  .input-group-btn {
+    border: none !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    padding: 10px 16px;
+  }
+  .input-group-btn:hover { transform: none; }
+
+  /* ───── Modal in-app ───── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15,8,12,0.55);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 24px;
+    opacity: 0;
+    transition: opacity 180ms ease;
+  }
+  .modal-overlay.open {
+    display: flex;
+    opacity: 1;
+  }
+  .modal-dialog {
+    background: var(--paper, #fff);
+    border-radius: 14px;
+    border: 1px solid var(--hairline, #EFE6E9);
+    max-width: 480px;
+    width: 100%;
+    padding: 26px 28px 22px;
+    box-shadow: 0 24px 64px rgba(15,8,12,0.20);
+    transform: translateY(8px) scale(0.98);
+    transition: transform 180ms ease;
+  }
+  .modal-overlay.open .modal-dialog { transform: none; }
+  .modal-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 500;
+    margin: 0 0 12px;
+    color: var(--ink, #2F1820);
+  }
+  .modal-body {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink-soft, #5A3F48);
+    white-space: pre-line;
+    margin-bottom: 22px;
+  }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  /* ───── Page header : assurer que le h1 ne se compresse plus ───── */
+  .page-header h1 { white-space: nowrap; }
+
+  @media (max-width: 920px) {
+    .run-actions-group + .run-actions-group {
+      padding-left: 0;
+      border-left: none;
+      padding-top: 12px;
+      border-top: 1px solid var(--hairline, #EFE6E9);
+    }
+    .page-header h1 { white-space: normal; }
+  }
+</style>
+
+<script>
+  // ─────── Modal de confirmation in-app (avec support input + async progress) ───────
+  (function() {
+    const modal = document.getElementById('confirm-modal');
+    if (!modal) return;
+    const titleEl = modal.querySelector('#confirm-modal-title');
+    const bodyEl = modal.querySelector('#confirm-modal-body');
+    const inputSlot = modal.querySelector('#confirm-modal-input-slot');
+    const okBtn = modal.querySelector('[data-modal-confirm]');
+    const cancelBtn = modal.querySelector('[data-modal-cancel]');
+
+    let pendingForm = null;
+
+    function clearInputSlot() {
+      if (inputSlot) inputSlot.innerHTML = '';
+    }
+
+    function openModal(form) {
+      pendingForm = form;
+      const title = form.dataset.confirmTitle || 'Confirmer ?';
+      const okLabel = form.dataset.confirmOk || 'Confirmer';
+      let body = form.dataset.confirmBody || '';
+
+      // Template avec placeholders {count}/{chunks} (formulaire "Prolonger").
+      if (form.dataset.confirmBodyTemplate) {
+        const countInput = form.querySelector('input[name="count"]');
+        const count = countInput ? (parseInt(countInput.value, 10) || 0) : 0;
+        const chunks = Math.max(1, Math.ceil(count / 20));
+        body = form.dataset.confirmBodyTemplate
+          .replace('{count}', count)
+          .replace('{chunks}', chunks);
+      }
+
+      titleEl.textContent = title;
+      bodyEl.textContent = body;
+      okBtn.textContent = okLabel;
+
+      // Input optionnel dans le modal (utilise pour renommer le fichier Cortex).
+      clearInputSlot();
+      const inputName = form.dataset.confirmInputName;
+      if (inputName && inputSlot) {
+        const wrap = document.createElement('div');
+        wrap.className = 'modal-input-group';
+        const label = document.createElement('label');
+        label.setAttribute('for', 'confirm-modal-input');
+        label.textContent = form.dataset.confirmInputLabel || 'Valeur';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'confirm-modal-input';
+        input.value = form.dataset.confirmInputDefault || '';
+        input.placeholder = form.dataset.confirmInputDefault || '';
+        wrap.appendChild(label);
+        wrap.appendChild(input);
+        if (form.dataset.confirmInputHint) {
+          const hint = document.createElement('div');
+          hint.className = 'modal-input-hint';
+          hint.textContent = form.dataset.confirmInputHint;
+          wrap.appendChild(hint);
+        }
+        inputSlot.appendChild(wrap);
+      }
+
+      modal.setAttribute('aria-hidden', 'false');
+      modal.classList.add('open');
+      setTimeout(() => {
+        const input = modal.querySelector('#confirm-modal-input');
+        (input || okBtn).focus();
+        if (input) input.select();
+      }, 50);
+    }
+
+    function closeModal() {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+      clearInputSlot();
+      pendingForm = null;
+    }
+
+    okBtn.addEventListener('click', () => {
+      if (!pendingForm) { closeModal(); return; }
+      // Validation specifique pour le form "prolonger" (input count)
+      const countInput = pendingForm.querySelector('input[name="count"]');
+      if (countInput) {
+        const n = parseInt(countInput.value, 10);
+        if (!n || n < 1 || n > 2000) {
+          alert('Nombre entre 1 et 2000.');
+          return;
+        }
+      }
+      // Si le modal contient un input, on le recopie dans le hidden field correspondant.
+      const inputName = pendingForm.dataset.confirmInputName;
+      if (inputName) {
+        const modalInput = modal.querySelector('#confirm-modal-input');
+        const hidden = pendingForm.querySelector(`input[name="${inputName}"]`);
+        if (modalInput && hidden) hidden.value = modalInput.value;
+      }
+      const f = pendingForm;
+      // Async progress (matching images) : on intercepte le submit pour lancer
+      // un fetch + ouvrir le modal de progression au lieu de naviguer.
+      if (f.dataset.asyncProgress === 'match-images') {
+        closeModal();
+        startMatchImagesProgress(f);
+        return;
+      }
+      closeModal();
+      f.submit();
+    });
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
+    });
+
+    // Intercepter tous les forms avec data-confirm
+    document.querySelectorAll('form[data-confirm]').forEach((form) => {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        openModal(form);
+      });
+    });
+  })();
+
+  // ─────── Modal de progression du matching des images ───────
+  function startMatchImagesProgress(form) {
+    const modal = document.getElementById('match-progress-modal');
+    if (!modal) { form.submit(); return; }
+    const headline = modal.querySelector('#match-progress-headline');
+    const bar = modal.querySelector('#match-progress-bar');
+    const counts = modal.querySelector('#match-progress-counts');
+    const last = modal.querySelector('#match-progress-last');
+    const closeBtn = modal.querySelector('#match-progress-close');
+    const titleEl = modal.querySelector('#match-progress-title');
+    const statusUrl = form.dataset.progressStatusUrl;
+
+    // Reset visuel
+    titleEl.textContent = 'Attribution des images…';
+    headline.textContent = 'Démarrage…';
+    bar.classList.add('indeterminate');
+    bar.style.width = '0%';
+    counts.innerHTML = '<span><strong>0</strong> matchés</span><span><strong>0</strong> sans candidate</span><span><strong>0</strong> sans brief</span><span>pool : <strong>—</strong></span>';
+    last.textContent = 'En attente du premier tweet…';
+    closeBtn.disabled = true;
+    closeBtn.textContent = 'OK';
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+
+    let poller = null;
+    let finished = false;
+
+    function renderProgress(p) {
+      const total = p.total || 0;
+      const processed = p.processed || 0;
+      const matched = p.matched || 0;
+      const noCand = p.no_candidate || 0;
+      const noBrief = p.no_brief || 0;
+      const pool = (p.pool_size === 0 || p.pool_size) ? p.pool_size : '—';
+
+      if (total > 0) {
+        bar.classList.remove('indeterminate');
+        const pct = Math.min(100, Math.round((processed / total) * 100));
+        bar.style.width = pct + '%';
+        headline.textContent = `${processed} / ${total} tweet(s) traité(s)`;
+      } else {
+        headline.textContent = 'Aucun tweet à matcher pour ce run.';
+      }
+      counts.innerHTML =
+        `<span><strong>${matched}</strong> matchés</span>` +
+        `<span><strong>${noCand}</strong> sans candidate</span>` +
+        `<span><strong>${noBrief}</strong> sans brief</span>` +
+        `<span>pool : <strong>${pool}</strong></span>`;
+      if (p.last_action) last.textContent = p.last_action;
+    }
+
+    function renderDone(p) {
+      finished = true;
+      bar.classList.remove('indeterminate');
+      bar.style.width = '100%';
+      const r = p.result || {};
+      if (p.status === 'failed') {
+        titleEl.textContent = 'Attribution échouée';
+        headline.textContent = p.error || 'Erreur inconnue.';
+        last.textContent = '';
+      } else if (r.warning) {
+        titleEl.textContent = 'Attribution terminée — vigilance';
+        headline.textContent = r.warning;
+      } else {
+        titleEl.textContent = 'Attribution terminée';
+        headline.textContent =
+          `${r.matched || 0} match(es), ${r.no_candidate || 0} sans candidate, ${r.no_brief || 0} sans brief · pool : ${r.pool_size}`;
+      }
+      closeBtn.disabled = false;
+      closeBtn.textContent = (p.status === 'failed') ? 'Fermer' : 'OK · recharger la page';
+    }
+
+    function stopPoll() {
+      if (poller) { clearInterval(poller); poller = null; }
+    }
+
+    closeBtn.addEventListener('click', function onClose() {
+      stopPoll();
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+      closeBtn.removeEventListener('click', onClose);
+      if (finished) {
+        // Recharge pour voir les thumbnails matchées dans la table.
+        window.location.reload();
+      }
+    });
+
+    // Lance le POST puis poll le status.
+    fetch(form.action, { method: 'POST', headers: { 'Accept': 'application/json' } })
+      .then((res) => res.json().catch(() => ({})))
+      .then((payload) => {
+        if (!payload.ok) {
+          headline.textContent = payload.error || 'Impossible de lancer le matching.';
+          bar.classList.remove('indeterminate');
+          closeBtn.disabled = false;
+          finished = true;
+          return;
+        }
+        poller = setInterval(() => {
+          fetch(statusUrl, { headers: { 'Accept': 'application/json' } })
+            .then((r) => r.json())
+            .then((sp) => {
+              if (!sp.ok) return;
+              const p = sp.progress;
+              renderProgress(p);
+              if (p.status === 'completed' || p.status === 'failed') {
+                stopPoll();
+                renderDone(p);
+              }
+            })
+            .catch(() => { /* tolérer un poll qui rate, on retentera */ });
+        }, 500);
+      })
+      .catch((err) => {
+        headline.textContent = 'Erreur réseau au démarrage : ' + err;
+        bar.classList.remove('indeterminate');
+        closeBtn.disabled = false;
+        finished = true;
+      });
+  }
+</script>
+
+{% if run.status == 'failed' and run.error_message %}
+<div class="alert err mb-lg">
+  <span class="dot err"></span>
+  <span>
+    <strong>Pipeline échoué.</strong> {{ run.error_message }}
+    {% if run.current_stage %}<br><span class="muted text-xs">Étape atteinte : <span class="mono">{{ run.current_stage }}</span></span>{% endif %}
+  </span>
+</div>
+{% endif %}
+
+{# ───────────────── Stats du run ───────────────── #}
+<section class="grid grid-5 mb-lg">
+  <div class="card tight metric">
+    <div class="label">Source</div>
+    <div class="value" style="font-size:26px;">{{ run.source_tweets_count or '?' }}<span class="unit">tweets</span></div>
+  </div>
+  <div class="card tight metric">
+    <div class="label">Output</div>
+    <div class="value" style="font-size:26px;">{{ run.output_tweets_count or '?' }}<span class="unit">tweets</span></div>
+  </div>
+  <div class="card tight metric">
+    <div class="label">Threads</div>
+    <div class="value" style="font-size:26px;">{{ run.threads_count or 0 }}</div>
+  </div>
+  <div class="card tight metric">
+    <div class="label">Tokens</div>
+    <div class="value" style="font-size:26px;">{{ ((run.input_tokens or 0) + (run.output_tokens or 0)) | round | int }}</div>
+    <div class="delta"><span>{{ run.cached_tokens or 0 }} cached</span></div>
+  </div>
+  <div class="card tight metric">
+    <div class="label">Coût estimé</div>
+    <div class="value" style="font-size:26px;">${{ "%.3f"|format(run.cost_usd or 0) }}</div>
+  </div>
+</section>
+
+{# ───────────────── Dashboard détaillé du run ───────────────── #}
+{% if dashboard and not dashboard.empty %}
+{% set m = dashboard.mentions %}
+{% set th = dashboard.threads %}
+{% set c = dashboard.content %}
+{% set d = dashboard.distribution %}
+<section class="card mb-lg dashboard-block">
+  <div class="row-between mb-md">
+    <h3 class="card-title">Dashboard du run</h3>
+    <span class="muted text-xs">{{ dashboard.total }} tweets analysés</span>
+  </div>
+
+  {# Mentions Compaatible #}
+  <div class="dashboard-section">
+    <div class="dashboard-section-title">Mentions Compaatible</div>
+    <div class="dashboard-grid">
+      <div class="dashboard-stat">
+        <div class="label">Texte <span class="muted">(plafond 15%)</span></div>
+        <div class="value">
+          {{ m.text }}
+          <span class="unit {% if m.ratio_text > 0.15 %}text-err{% endif %}">{{ "%.1f"|format(m.ratio_text * 100) }}%</span>
+        </div>
+      </div>
+      <div class="dashboard-stat">
+        <div class="label">URL blog <span class="muted">(non comptées)</span></div>
+        <div class="value">{{ m.url_blog }}</div>
+      </div>
+      <div class="dashboard-stat">
+        <div class="label">URL compaatible.com hors blog</div>
+        <div class="value">{{ m.url_other }}</div>
+      </div>
+      <div class="dashboard-stat">
+        <div class="label">Total mentions visibles</div>
+        <div class="value">{{ m.total_any }}</div>
+      </div>
+    </div>
+    {% if m.ratio_text > 0.15 %}
+    <div class="text-xs text-err mt-sm">⚠ Ratio texte au-dessus du plafond 15% — anomalie de régulation.</div>
+    {% endif %}
+  </div>
+
+  {# Structure narrative #}
+  <div class="dashboard-section">
+    <div class="dashboard-section-title">Structure narrative</div>
+    <div class="dashboard-grid">
+      <div class="dashboard-stat">
+        <div class="label">Threads</div>
+        <div class="value">
+          {{ th.count }}
+          <span class="unit">{{ th.tweets_in_threads }} tweets · moy {{ "%.1f"|format(th.avg_size) }} · max {{ th.max_size }}</span>
+        </div>
+      </div>
+      <div class="dashboard-stat">
+        <div class="label">Tweets isolés</div>
+        <div class="value">{{ th.isolated }}</div>
+      </div>
+      <div class="dashboard-stat">
+        <div class="label">needs_image</div>
+        <div class="value">{{ c.needs_image }}</div>
+      </div>
+      <div class="dashboard-stat">
+        <div class="label">avec media_url</div>
+        <div class="value">{{ c.has_media }}</div>
+      </div>
+    </div>
+  </div>
+
+  {# Distributions #}
+  {% macro dist_block(title, items, total) %}
+  <div class="dashboard-dist">
+    <div class="dashboard-dist-title">{{ title }}</div>
+    {% if items %}
+    <table class="dashboard-dist-table">
+      {% for key, v in items %}
+      {% set pct = (v / total * 100) if total else 0 %}
+      <tr>
+        <td class="key">{{ key or '—' }}</td>
+        <td class="num">{{ v }}</td>
+        <td class="pct muted">{{ "%.1f"|format(pct) }}%</td>
+        <td class="bar"><div class="dashboard-bar" style="width: {{ pct }}%;"></div></td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <div class="muted text-xs">(aucune donnée)</div>
+    {% endif %}
+  </div>
+  {% endmacro %}
+
+  <div class="dashboard-section">
+    <div class="dashboard-section-title">Hook pattern</div>
+    {{ dist_block("", d.hook_pattern, dashboard.total) }}
+  </div>
+
+  <div class="dashboard-section">
+    <div class="dashboard-section-title">Adaptation level <span class="muted text-xs">(rewritten_in_voice / light_polish / original_inspired)</span></div>
+    {{ dist_block("", d.adaptation_level, dashboard.total) }}
+  </div>
+
+  <div class="dashboard-section">
+    <div class="dashboard-section-title">Integration strategy <span class="muted text-xs">(none / blog_pivot / direct_mention / …)</span></div>
+    {{ dist_block("", d.integration_strategy, dashboard.total) }}
+  </div>
+
+  {% if d.source_lang|length > 1 %}
+  <div class="dashboard-section">
+    <div class="dashboard-section-title">Langue source</div>
+    {{ dist_block("", d.source_lang, dashboard.total) }}
+  </div>
+  {% endif %}
+
+  {% if d.extension_idx|length > 1 %}
+  <div class="dashboard-section">
+    <div class="dashboard-section-title">Origine <span class="muted text-xs">(0 = run initial)</span></div>
+    {{ dist_block("", d.extension_idx, dashboard.total) }}
+  </div>
+  {% endif %}
+
+  <div class="dashboard-section">
+    <div class="dashboard-section-title">Contenu</div>
+    <div class="dashboard-grid">
+      <div class="dashboard-stat">
+        <div class="label">Total caractères</div>
+        <div class="value">{{ c.total_chars }}</div>
+      </div>
+      <div class="dashboard-stat">
+        <div class="label">Moyenne / tweet</div>
+        <div class="value">{{ c.avg_chars|round|int }}<span class="unit">chars</span></div>
+      </div>
+      <div class="dashboard-stat">
+        <div class="label">Tweets &gt; 280 <span class="muted">(anomalie)</span></div>
+        <div class="value {% if c.over_280 %}text-err{% endif %}">{{ c.over_280 }}</div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# ───────────────── Persona card (compacte par défaut) ───────────────── #}
+{% if run.persona_first_name %}
+<section class="persona-card mb-lg">
+  <div class="row gap-md mb-sm">
+    <span class="eyebrow" style="margin-bottom:0;">Persona émergente</span>
+    <span class="persona-pill">Avatar {{ run.persona_avatar }}</span>
+  </div>
+  <div class="persona-name">
+    {% if run.persona_id %}
+    <a href="{{ url_for('personas.detail', persona_id=run.persona_id) }}" style="color:inherit; text-decoration:none; border-bottom:1px dashed rgba(255,255,255,0.35);" title="Voir la fiche persona (CSV initial + CSV Cortex)">{{ run.persona_first_name }}</a>
+    {% else %}
+    {{ run.persona_first_name }}
+    {% endif %}
+  </div>
+  <div class="persona-bio">"{{ run.persona_bio }}"</div>
+  {% if run.persona_backstory or run.persona_voice %}
+  <details class="persona-more">
+    <summary>Voir l'histoire complète</summary>
+    {% if run.persona_backstory %}<p class="persona-back">{{ run.persona_backstory }}</p>{% endif %}
+    {% if run.persona_voice %}<div class="persona-voice">Voix : {{ run.persona_voice }}</div>{% endif %}
+  </details>
+  {% endif %}
+</section>
+
+<style>
+  .persona-more {
+    margin-top: 16px;
+  }
+  .persona-more > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    list-style: none;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: rgba(255,255,255,0.75);
+    padding: 6px 12px;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 999px;
+    transition: background 180ms ease;
+  }
+  .persona-more > summary:hover {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+  }
+  .persona-more > summary::-webkit-details-marker { display: none; }
+  .persona-more > summary::after {
+    content: '+';
+    font-family: 'JetBrains Mono', monospace;
+    margin-left: 4px;
+  }
+  .persona-more[open] > summary::after { content: '−'; }
+  .persona-more .persona-back { margin-top: 14px; }
+</style>
+{% endif %}
+
+{# ───────────────── Health check CSV (warnings structurels) ───────────────── #}
+{% if health and (health.warnings or health.stats) %}
+<details class="disclosure mb-lg">
+  <summary>
+    <span>
+      Health check CSV
+      {% if health.warnings %}<span class="pill warn" style="margin-left:6px;">{{ health.warnings|length }} warning(s)</span>{% else %}<span class="pill ok" style="margin-left:6px;">OK</span>{% endif %}
+    </span>
+  </summary>
+  <div class="disclosure-body stack stack-md">
+    {% if health.warnings %}
+      {% for w in health.warnings %}
+      <div class="alert warn">
+        <span class="dot warn"></span>
+        <span>{{ w }}</span>
+      </div>
+      {% endfor %}
+    {% endif %}
+    {% if health.stats %}
+    <div class="muted text-xs" style="font-family:'JetBrains Mono', monospace;">
+      Stats CSV ·
+      {{ health.stats.kept_rows }}/{{ health.stats.total_rows_input }} lignes retenues
+      {% if health.stats.tag_spam_count %} · {{ health.stats.tag_spam_count }} tag-spam filtré(s){% endif %}
+      · longueur moy. {{ health.stats.avg_length }} chars
+      {% if health.stats.duplicate_rate %} · doublons {{ (health.stats.duplicate_rate * 100)|round|int }}%{% endif %}
+      {% if health.stats.overflow_280 %} · {{ health.stats.overflow_280 }} > 280 chars{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</details>
+{% endif %}
+
+{# ───────────────── Playbook collapsible ───────────────── #}
+{% if playbook %}
+<details class="disclosure mb-lg">
+  <summary>
+    <span>Playbook du compte source <span class="muted" style="font-weight:400;">· {{ playbook.mechanisms|length if playbook.mechanisms else 0 }} mécanismes identifiés</span></span>
+  </summary>
+  <div class="disclosure-body stack stack-md">
+
+    {% if playbook.source_summary %}
+    <div class="muted text-xs">
+      @{{ playbook.source_summary.handle or '?' }} · {{ playbook.source_summary.tweets_analyzed or '?' }} tweets analysés
+      {% if playbook.source_summary.language_dominant %} · langue {{ playbook.source_summary.language_dominant }}{% endif %}
+    </div>
+    {% endif %}
+
+    {% if playbook.mechanisms %}
+      <div>
+        {% for m in playbook.mechanisms %}
+        <div class="mech">
+          <div class="mech-head">
+            <span class="mech-name">{{ m.name }}</span>
+            {% if m.compaatible_compatibility %}
+              {% set cls = {'high':'ok', 'medium':'warn', 'low':'err'}.get(m.compaatible_compatibility, 'muted') %}
+              <span class="pill {{ cls }}">{{ m.compaatible_compatibility }}</span>
+            {% endif %}
+          </div>
+          <div class="mech-desc">{{ m.description }}</div>
+          {% if m.why_it_works %}<div class="mech-note"><strong>Pourquoi ça marche :</strong> {{ m.why_it_works }}</div>{% endif %}
+          {% if m.compaatible_application %}<div class="mech-apply"><strong>App Compaatible :</strong> {{ m.compaatible_application }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if playbook.tone_signature %}
+    <div class="alert">
+      <span class="dot accent"></span>
+      <span>
+        <strong>Tone signature :</strong>
+        longueur médiane {{ playbook.tone_signature.median_length_chars }} chars ·
+        emojis {{ playbook.tone_signature.emojis_usage }} ·
+        structure : {{ playbook.tone_signature.structure_typical }}
+      </span>
+    </div>
+    {% endif %}
+
+    {% if playbook.warnings_to_avoid %}
+    <div class="alert warn">
+      <span class="dot warn"></span>
+      <span>
+        <strong>À éviter dans l'adaptation :</strong>
+        <ul style="margin: 6px 0 0; padding-left: 18px;">
+          {% for w in playbook.warnings_to_avoid %}<li>{{ w }}</li>{% endfor %}
+        </ul>
+      </span>
+    </div>
+    {% endif %}
+
+  </div>
+</details>
+{% endif %}
+
+{# ───────────────── Validation Cortex ───────────────── #}
+<section class="card mb-lg">
+  <div class="row-between">
+    <h3 class="card-title">Validation Cortex</h3>
+    {% if validation.ok %}
+      <span class="pill ok">{{ validation.stats.valid }} / {{ validation.stats.total }} valides · CSV prêt</span>
+    {% else %}
+      <span class="pill err">{{ validation.fatal_errors|length }} erreur(s) fatale(s)</span>
+    {% endif %}
+  </div>
+  {% if validation.fatal_errors %}
+  <div class="mt-md stack stack-sm" style="font-size:12.5px; color:var(--error);">
+    {% for e in validation.fatal_errors[:10] %}<div>Ligne {{ e.row }} : {{ e.message }}</div>{% endfor %}
+    {% if validation.fatal_errors|length > 10 %}<div class="muted">…et {{ validation.fatal_errors|length - 10 }} de plus.</div>{% endif %}
+  </div>
+  {% endif %}
+  {% if validation.warnings %}
+  <details class="mt-md" style="font-size:12.5px;">
+    <summary style="cursor:pointer; color:var(--warning); font-weight:500;">{{ validation.warnings|length }} warning(s)</summary>
+    <div class="mt-sm stack" style="color:#6B4523; gap:4px;">
+      {% for w in validation.warnings[:20] %}<div>Ligne {{ w.row }} : {{ w.message }}</div>{% endfor %}
+      {% if validation.warnings|length > 20 %}<div class="muted">…et {{ validation.warnings|length - 20 }} de plus.</div>{% endif %}
+    </div>
+  </details>
+  {% endif %}
+</section>
+
+{# ───────────────── Tweets table ───────────────── #}
+{# Calcul du breakdown original / extensions à partir des tweets en mémoire (pas de SQL supplémentaire) #}
+{% set ns = namespace(orig=0, ext_groups={}) %}
+{% for t in tweets %}
+  {% if t.extension_idx %}
+    {% set _ = ns.ext_groups.update({t.extension_idx: ns.ext_groups.get(t.extension_idx, 0) + 1}) %}
+  {% else %}
+    {% set ns.orig = ns.orig + 1 %}
+  {% endif %}
+{% endfor %}
+
+<section>
+  <div class="section-row">
+    <h2 class="section-title">{{ tweets|length }} tweets Compaatible</h2>
+    <span class="section-meta">Édition inline · Tab pour valider</span>
+  </div>
+
+  {% if ns.ext_groups %}
+  <div class="row gap-sm mb-md" style="font-size:12.5px; align-items:center;">
+    <span class="muted">Composition :</span>
+    <span class="pill muted" title="Tweets du run d'origine">{{ ns.orig }} originaux</span>
+    {% for idx, n in ns.ext_groups.items()|sort %}
+      <span class="pill flammes" title="Tweets ajoutés via la {{ idx }}e prolongation">+ {{ n }} ext {{ idx }}</span>
+    {% endfor %}
+    <span class="muted">= {{ tweets|length }} au total</span>
+  </div>
+  {% endif %}
+
+  {% if tweets %}
+  <div class="tbl-wrap tweets-table">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th style="width:50px;">#</th>
+          <th>Tweet Compaatible</th>
+          <th style="width:140px;">Thread</th>
+          <th style="width:140px;">Hook</th>
+          <th style="width:90px;" title="Image attendue (needs_image flag) ou déjà matchée">Image</th>
+          <th class="num" style="width:80px;" title="Nombre de caractères. Twitter limite à 280 (270 si emojis composés).">
+            Caract. <span class="muted" style="font-weight:400;">/280</span>
+          </th>
+          <th style="width:50px;"></th>
+        </tr>
+      </thead>
+      <tbody id="tweets-tbody">
+        {% for t in tweets %}
+        <tr data-tweet-id="{{ t.id }}" {% if t.extension_idx %}class="is-extension"{% endif %}>
+          <td class="mono dim">
+            {{ loop.index }}
+            {% if t.extension_idx %}
+              <div class="pill flammes" style="font-size:10px; padding:1px 5px; margin-top:3px; display:inline-block;"
+                   title="Ajouté lors de la {{ t.extension_idx }}e prolongation de ce run">ext {{ t.extension_idx }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <textarea
+              class="cell"
+              rows="2"
+              data-field="content"
+              onblur="saveTweet(this)"
+              oninput="updateCharCount(this)"
+            >{{ t.content }}</textarea>
+            <div class="text-xs" style="padding:2px 12px 0; display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
+              {% if t.adaptation_level %}
+                {% set lvl_label = {
+                  'verbatim_translated': 'Verbatim FR',
+                  'light_polish': 'Retouche légère',
+                  'rewritten_in_voice': 'Réécrit',
+                  'original_inspired': 'Inventé'
+                }.get(t.adaptation_level, t.adaptation_level) %}
+                {% set lvl_class = {
+                  'verbatim_translated': 'ok',
+                  'light_polish': '',
+                  'rewritten_in_voice': 'warn',
+                  'original_inspired': 'flammes'
+                }.get(t.adaptation_level, 'muted') %}
+                <span class="pill {{ lvl_class }}" title="Niveau d'adaptation (voir Source ↓ pour comparer)">{{ lvl_label }}</span>
+              {% endif %}
+              {% if t.mechanism_applied %}<span class="muted">→ {{ t.mechanism_applied }}</span>{% endif %}
+            </div>
+            {% if t.source_text %}
+            <details class="diff-toggle">
+              <summary>↓ Source ({{ t.source_lang or 'orig.' }})</summary>
+              <div class="diff-grid">
+                <div class="diff-block">
+                  <div class="diff-label">Original {% if t.source_lang and t.source_lang != 'fr' %}<span class="diff-lang">{{ t.source_lang }}</span>{% endif %}</div>
+                  <div class="diff-text">{{ t.source_text }}</div>
+                </div>
+                {% if t.translation_fr and t.source_lang and t.source_lang != 'fr' %}
+                <div class="diff-block">
+                  <div class="diff-label">Traduction FR</div>
+                  <div class="diff-text italic-serif">{{ t.translation_fr }}</div>
+                </div>
+                {% endif %}
+                <div class="diff-block diff-final">
+                  <div class="diff-label">Compaatible</div>
+                  <div class="diff-text">{{ t.content }}</div>
+                </div>
+                {% if t.reasoning %}
+                <div class="diff-reasoning">
+                  <div class="diff-label">Pourquoi cette adaptation</div>
+                  <div class="diff-text muted">{{ t.reasoning }}</div>
+                </div>
+                {% endif %}
+              </div>
+            </details>
+            {% endif %}
+          </td>
+          <td>
+            <input
+              type="text"
+              value="{{ t.thread_key or '' }}"
+              placeholder="—"
+              class="cell"
+              data-field="thread_key"
+              onblur="saveTweet(this)"
+            >
+            {% if t.thread_order %}<div class="text-xs muted" style="padding:0 10px;">order {{ t.thread_order }}</div>{% endif %}
+          </td>
+          <td class="text-xs muted">{{ t.hook_pattern or '—' }}</td>
+          <td class="text-xs">
+            {% if t.image_id and t.media_url %}
+              <div class="img-thumb-wrap" data-tweet-id="{{ t.id }}" style="position:relative; display:inline-block;">
+                <a href="{{ t.media_url }}" target="_blank" rel="noopener"
+                   class="img-thumb-link"
+                   data-preview-src="{{ t.media_url }}"
+                   title="Image matchée · clic pour ouvrir en grand">
+                  <img src="{{ t.media_url }}" alt="" class="img-thumb" loading="lazy">
+                </a>
+                <button type="button" class="img-detach-btn"
+                        onclick="detachImage({{ t.id }}, this)"
+                        title="Détacher l'image (le tweet la perd, mais elle reste dans la galerie)">×</button>
+              </div>
+            {% elif t.image_id %}
+              <span class="pill ok" title="Image matchée mais media_url manquante">image OK</span>
+              <button type="button" class="btn ghost sm danger"
+                      style="margin-left:6px; padding:1px 6px; font-size:11px;"
+                      onclick="detachImage({{ t.id }}, this)"
+                      title="Détacher cette image du tweet">détacher</button>
+            {% elif t.needs_image %}
+              <span class="pill warn" title="L'IA a flaggé ce tweet comme visuel · une image sera matchée si tu cliques sur Intégrer les images">image attendue</span>
+              {% if t.image_brief %}<div class="muted text-xs" style="margin-top:2px; font-size:11px; line-height:1.3;" title="Brief sémantique généré par l'IA pour guider le matching">{{ t.image_brief[:60] }}{% if t.image_brief|length > 60 %}…{% endif %}</div>{% endif %}
+            {% else %}
+              <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td class="num"><span class="char-count {% if t.char_count > 280 %}err{% elif t.char_count > 270 %}warn{% endif %}" title="Twitter limite à 280">{{ t.char_count }}</span></td>
+          <td>
+            <button onclick="deleteTweet({{ t.id }}, this)" class="btn ghost sm danger" title="Supprimer">×</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <style>
+    .diff-toggle {
+      margin: 8px 12px 0;
+      padding: 0;
+    }
+    .diff-toggle > summary {
+      cursor: pointer;
+      list-style: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      padding: 4px 10px;
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      background: var(--cream);
+      transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+    }
+    .diff-toggle > summary::-webkit-details-marker { display: none; }
+    .diff-toggle > summary:hover {
+      background: var(--burgundy-soft);
+      color: var(--burgundy);
+      border-color: var(--burgundy);
+    }
+    .diff-toggle[open] > summary { background: var(--burgundy-soft); color: var(--burgundy); border-color: var(--burgundy); }
+    .diff-grid {
+      margin: 10px 0 4px;
+      padding: 14px 16px;
+      background: var(--cream);
+      border-left: 3px solid var(--burgundy);
+      border-radius: var(--radius-sm);
+      display: grid;
+      gap: 12px;
+    }
+    .diff-block { display: grid; gap: 4px; }
+    .diff-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .diff-lang {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      padding: 1px 6px;
+      border: 1px solid var(--hairline-strong);
+      border-radius: 3px;
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+    .diff-text {
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--ink);
+    }
+    .diff-final .diff-text {
+      color: var(--burgundy);
+      font-weight: 500;
+    }
+    .diff-reasoning {
+      padding-top: 10px;
+      margin-top: 4px;
+      border-top: 1px dashed var(--hairline-strong);
+    }
+    .diff-reasoning .diff-text {
+      font-size: 12.5px;
+      font-style: italic;
+    }
+  </style>
+
+  <script>
+    const RUN_ID = {{ run.id }};
+
+    function updateCharCount(textarea) {
+      const tr = textarea.closest('tr');
+      const cell = tr.querySelector('.char-count');
+      const count = textarea.value.length;
+      cell.textContent = count;
+      cell.classList.remove('warn', 'err');
+      if (count > 280) cell.classList.add('err');
+      else if (count > 270) cell.classList.add('warn');
+    }
+
+    async function saveTweet(input) {
+      const tr = input.closest('tr');
+      const tweetId = tr.dataset.tweetId;
+      const field = input.dataset.field;
+      const value = input.value;
+
+      const res = await fetch(`/tweets/runs/${RUN_ID}/tweets/${tweetId}/edit`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({[field]: value}),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert('Erreur : ' + (data.error || data.errors || 'inconnue'));
+      }
+    }
+
+    async function deleteTweet(tweetId, btn) {
+      if (!confirm('Supprimer ce tweet ?')) return;
+      const res = await fetch(`/tweets/runs/${RUN_ID}/tweets/${tweetId}/delete`, {method: 'POST'});
+      if (res.ok) btn.closest('tr').remove();
+    }
+
+    async function detachImage(tweetId, btn) {
+      if (!confirm('Détacher cette image du tweet ?\n\nLe tweet la perd, mais elle reste disponible dans la galerie pour être matchée à un autre tweet.')) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/tweets/runs/${RUN_ID}/tweets/${tweetId}/detach-image`, {method: 'POST'});
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'erreur');
+        // Remplace la cellule par "—" sans recharger
+        const td = btn.closest('td');
+        if (td) td.innerHTML = '<span class="muted">—</span>';
+      } catch (e) {
+        alert(`Détachement échoué : ${e.message}`);
+        btn.disabled = false;
+      }
+    }
+
+    // Hover preview pour les thumbnails d'images matchées.
+    // On crée un popover en position:fixed (échappe au overflow:hidden de .tbl-wrap)
+    // qui montre l'image en grand au survol. Positionné à droite de la thumbnail,
+    // basculé à gauche si pas la place. Délai 80 ms pour éviter le flicker.
+    (function setupImagePreview() {
+      let preview = null;
+      let img = null;
+      let showTimer = null;
+
+      function ensurePreview() {
+        if (preview) return preview;
+        preview = document.createElement('div');
+        preview.className = 'img-thumb-floating-preview';
+        img = document.createElement('img');
+        preview.appendChild(img);
+        document.body.appendChild(preview);
+        return preview;
+      }
+
+      function positionPreview(anchor) {
+        const rect = anchor.getBoundingClientRect();
+        const pw = preview.offsetWidth || 328;
+        const ph = preview.offsetHeight || 328;
+        const margin = 12;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        // Par défaut à droite de la thumbnail
+        let left = rect.right + margin;
+        if (left + pw > vw - 8) {
+          // Pas la place à droite → on bascule à gauche
+          left = rect.left - margin - pw;
+        }
+        if (left < 8) left = 8;
+        let top = rect.top + rect.height / 2 - ph / 2;
+        if (top + ph > vh - 8) top = vh - 8 - ph;
+        if (top < 8) top = 8;
+        preview.style.left = left + 'px';
+        preview.style.top = top + 'px';
+      }
+
+      document.addEventListener('mouseover', function (e) {
+        const link = e.target.closest('.img-thumb-link');
+        if (!link) return;
+        const src = link.dataset.previewSrc;
+        if (!src) return;
+        clearTimeout(showTimer);
+        showTimer = setTimeout(function () {
+          ensurePreview();
+          if (img.src !== src) img.src = src;
+          // Positionner après chargement pour avoir les vraies dimensions ; sinon repositionner.
+          positionPreview(link);
+          preview.classList.add('is-visible');
+          img.onload = function () { positionPreview(link); };
+        }, 80);
+      });
+
+      document.addEventListener('mouseout', function (e) {
+        const link = e.target.closest('.img-thumb-link');
+        if (!link) return;
+        clearTimeout(showTimer);
+        if (preview) preview.classList.remove('is-visible');
+      });
+    })();
+  </script>
+
+  {% else %}
+  <div class="empty">
+    <div class="em-title">Aucun tweet généré dans ce run.</div>
+    {% if run.error_message %}<div class="em-sub" style="color:var(--error);">Erreur : {{ run.error_message }}</div>{% endif %}
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}

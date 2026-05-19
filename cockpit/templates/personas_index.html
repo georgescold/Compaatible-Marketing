@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Personas · Cockpit Compaatible{% endblock %}
+{% block crumb %}Personas{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Persona · Inventaire</span>
+    <h1>Personas</h1>
+    <p class="sub">Chaque persona émerge d'un CSV source. Tu peux récupérer son CSV initial (la source qui a fait émerger sa voix) et son CSV Cortex (tous les tweets adaptés, runs confondus).</p>
+  </div>
+</header>
+
+<section>
+  <div class="section-row">
+    <h2 class="section-title">Toutes les personas</h2>
+    {% if personas %}<span class="section-meta">{{ personas|length }} persona(s)</span>{% endif %}
+  </div>
+
+  {% if personas %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th style="width:50px;">#</th>
+          <th>Prénom · Âge</th>
+          <th>Avatar</th>
+          <th>Bio</th>
+          <th class="num">Runs</th>
+          <th class="num">Tweets</th>
+          <th class="num">Coût total</th>
+          <th>Dernier run</th>
+          <th></th>
+          <th style="width:40px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in personas %}
+        <tr>
+          <td class="mono dim">{{ p.id }}</td>
+          <td>
+            <div class="row-name">{{ p.first_name }}</div>
+            {% if p.age %}<div class="row-sub">{{ p.age }} ans</div>{% endif %}
+          </td>
+          <td>
+            <span class="pill">Avatar {{ p.avatar_id_primary or '?' }}</span>
+            {% if p.avatar_id_secondary %}<span class="muted text-xs">+ {{ p.avatar_id_secondary }}</span>{% endif %}
+          </td>
+          <td>
+            <div class="row-sub italic-serif" style="max-width:360px;">{{ p.bio_twitter or '—' }}</div>
+            {% if p.source_handle %}<div class="text-xs mono dim">depuis @{{ p.source_handle }}</div>{% endif %}
+          </td>
+          <td class="num">{{ p.runs_count or 0 }}</td>
+          <td class="num">{{ p.tweets_count or 0 }}</td>
+          <td class="num">{% if p.total_cost_usd %}${{ "%.3f"|format(p.total_cost_usd) }}{% else %}—{% endif %}</td>
+          <td class="dim">{{ p.last_run_at.strftime('%Y-%m-%d %H:%M') if p.last_run_at else '—' }}</td>
+          <td>
+            <a href="{{ url_for('personas.detail', persona_id=p.id) }}" class="text-burgundy" style="font-weight:500;">Ouvrir →</a>
+          </td>
+          <td>
+            <form method="post"
+                  action="{{ url_for('personas.delete', persona_id=p.id) }}"
+                  class="js-persona-delete"
+                  data-name="{{ p.first_name }}"
+                  data-runs="{{ p.runs_count or 0 }}"
+                  data-tweets="{{ p.tweets_count or 0 }}"
+                  style="margin:0;">
+              <button type="submit" class="btn-icon-danger" title="Supprimer cette persona et tout son corpus" aria-label="Supprimer {{ p.first_name }}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="em-title">Aucune persona pour l'instant.</div>
+    <div class="em-sub">Upload un CSV depuis <a href="{{ url_for('tweets.index') }}" class="text-burgundy">Tweets</a> pour faire émerger ta première persona.</div>
+  </div>
+  {% endif %}
+</section>
+
+<style>
+  .btn-icon-danger {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--muted-soft, #9a9a9a);
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .btn-icon-danger:hover {
+    background: rgba(180, 35, 35, 0.08);
+    color: #b42323;
+    border-color: rgba(180, 35, 35, 0.25);
+  }
+</style>
+
+<script>
+(function(){
+  document.querySelectorAll('form.js-persona-delete').forEach(function(form){
+    form.addEventListener('submit', function(e){
+      var name = form.dataset.name || 'cette persona';
+      var runs = parseInt(form.dataset.runs || '0', 10);
+      var tweets = parseInt(form.dataset.tweets || '0', 10);
+      var msg = 'Supprimer « ' + name + ' » ?\n\n' +
+                'Cascade : ' + runs + ' run(s) et ' + tweets + ' tweet(s) seront effacés.\n' +
+                'Cette action est irréversible.';
+      if (!window.confirm(msg)) {
+        e.preventDefault();
+      }
+    });
+  });
+})();
+</script>
+
+{% endblock %}

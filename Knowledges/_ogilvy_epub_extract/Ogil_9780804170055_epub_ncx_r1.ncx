@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
+<ncx version="2005-1" xml:lang="en-US" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+	<head>
+		<meta name="dtb:uid" content="978-0-8041-7005-5"/>
+		<meta name="dtb:depth" content="2"/>
+		<meta name="dtb:totalPageCount" content="0"/>
+		<meta name="dtb:maxPageNumber" content="0"/>
+	</head>
+	<docTitle><text>Ogilvy on Advertising</text></docTitle>
+	<docAuthor><text>David Ogilvy</text></docAuthor>
+	<navMap>
+		<navPoint class="cover" id="cvi" playOrder="1">
+			<navLabel><text>Cover</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_cvi_r1.htm"/>
+		</navPoint>
+		<navPoint class="titlepage" id="tp" playOrder="2">
+			<navLabel><text>Title Page</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_tp_r1.htm"/>
+		</navPoint>
+		<navPoint class="copyright" id="cop" playOrder="3">
+			<navLabel><text>Copyright</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_cop_r1.htm"/>
+		</navPoint>
+		<navPoint class="other" id="toc" playOrder="4">
+			<navLabel><text>Contents</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_toc_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c01" playOrder="5">
+			<navLabel><text>1. Overture</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c01_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c02" playOrder="6">
+			<navLabel><text>2. How to produce advertising that sells</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c02_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c03" playOrder="7">
+			<navLabel><text>3. Jobs in advertising &#x2013; and how to get them</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c03_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c04" playOrder="8">
+			<navLabel><text>4. How to run an advertising agency</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c04_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c05" playOrder="9">
+			<navLabel><text>5. How to get clients</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c05_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c06" playOrder="10">
+			<navLabel><text>6. Open letter to a client in search of an agency</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c06_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c07" playOrder="11">
+			<navLabel><text>7. Wanted: a renaissance in print advertising</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c07_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c08" playOrder="12">
+			<navLabel><text>8. How to make TV commercials that sell</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c08_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c09" playOrder="13">
+			<navLabel><text>9. Advertising corporations</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c09_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c10" playOrder="14">
+			<navLabel><text>10. How to advertise foreign travel</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c10_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c11" playOrder="15">
+			<navLabel><text>11. The secrets of success in business-to-business advertising</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c11_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c12" playOrder="16">
+			<navLabel><text>12. Direct mail, my first love and secret weapon</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c12_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c13" playOrder="17">
+			<navLabel><text>13. Advertising for good causes</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c13_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c14" playOrder="18">
+			<navLabel><text>14. Competing with Procter &#x0026; Gamble</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c14_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c15" playOrder="19">
+			<navLabel><text>15. 18 Miracles of research</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c15_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c16" playOrder="20">
+			<navLabel><text>16. What little I know about marketing</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c16_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c17" playOrder="21">
+			<navLabel><text>17. Is America still top nation?</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c17_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c18" playOrder="22">
+			<navLabel><text>18. Lasker, Resor, Rubicam, Burnett, Hopkins and Bernbach</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c18_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c19" playOrder="23">
+			<navLabel><text>19. What&#x2019;s wrong with advertising?</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c19_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="c20" playOrder="24">
+			<navLabel><text>20. I predict 13 changes</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_c20_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="bm" playOrder="25">
+			<navLabel><text>Reading list</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_bm_r1.htm"/>
+		</navPoint>
+		<navPoint class="chapter" id="ind" playOrder="26">
+			<navLabel><text>Index</text></navLabel>
+			<content src="OEBPS/Ogil_9780804170055_epub_ind_r1.htm"/>
+		</navPoint>
+	</navMap>
+</ncx>

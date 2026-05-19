@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+{% block title %}Images · Cockpit Compaatible{% endblock %}
+{% block crumb %}Images{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Pipeline · Vision API</span>
+    <h1>Pipeline Images</h1>
+    <p class="sub">Indexer le corpus via Vision API. Métadonnées structurées : description, émotions, ambiance, couleurs, fit Compaatible, avatars cibles.</p>
+  </div>
+</header>
+
+{# ───────────────── Stats ───────────────── #}
+<section class="grid grid-5 mb-md">
+  <div class="card tight metric">
+    <div class="label">Sur disque</div>
+    <div class="value" style="font-size:26px;">{{ stats.total_on_disk }}</div>
+  </div>
+  <div class="card tight metric">
+    <div class="label">Indexées</div>
+    <div class="value" style="font-size:26px; color: var(--success);">{{ stats.indexed }}</div>
+  </div>
+  <div class="card tight metric">
+    <div class="label">Restant</div>
+    <div class="value" style="font-size:26px; color: var(--warning);">{{ stats.unindexed }}</div>
+  </div>
+  <div class="card tight metric">
+    <div class="label">High fit</div>
+    <div class="value" style="font-size:26px;">{{ stats.by_fit.get('high', 0) }}</div>
+  </div>
+  <div class="card tight metric">
+    <div class="label">Off-brand</div>
+    <div class="value" style="font-size:26px; color: var(--muted);">{{ stats.by_fit.get('off_brand', 0) }}</div>
+  </div>
+</section>
+
+{# ───────────────── Batch indexer ───────────────── #}
+{% if stats.unindexed > 0 %}
+<section class="card dark row-between mb-lg" style="gap:24px;">
+  <div>
+    <span class="eyebrow">Action disponible</span>
+    <div class="card-title" style="color:#fff;">Indexer en batch</div>
+    <div class="card-sub" style="color:rgba(255,255,255,0.8); margin-top:6px;">
+      {{ stats.unindexed }} images attendent. Tu choisiras le modèle et verras le coût estimé sur l'écran de confirmation.
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('images.batch_index') }}" class="row gap-sm shrink-0">
+    <input type="number" name="limit" value="20" min="1" max="200" class="input mono w-sm" style="background:rgba(255,255,255,0.94); color:var(--ink); border-color:transparent; max-width:90px;">
+    <button type="submit" class="btn" style="background:#fff; color:var(--burgundy); border-color:#fff;">
+      Lancer
+      <svg class="arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    </button>
+  </form>
+</section>
+{% else %}
+<div class="alert ok mb-lg">
+  <span class="dot ok"></span>
+  <span>Toutes les images du disque sont indexées.</span>
+</div>
+{% endif %}
+
+{# ───────────────── Filtres + galerie ───────────────── #}
+<section class="grid" style="grid-template-columns: 240px 1fr; gap: 32px;">
+
+  <aside style="position: sticky; top: 24px; align-self: start;">
+    <div class="card tight">
+      <form method="get" action="{{ url_for('images.index') }}" class="stack stack-md">
+
+        <div class="field">
+          <label class="field-label">Recherche</label>
+          <input type="text" name="q" value="{{ filters.q or '' }}" placeholder="description, filename…" class="input">
+        </div>
+
+        <div class="field">
+          <label class="field-label">Fit Compaatible</label>
+          <div class="stack" style="gap:4px;">
+            {% for f in ['high','medium','low','off_brand'] %}
+            <label class="checkbox-row">
+              <input type="checkbox" name="fit" value="{{ f }}" {% if f in filters.fit %}checked{% endif %}>
+              <span>{{ f }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Avatar</label>
+          <select name="avatar" class="select">
+            <option value="">— tous —</option>
+            {% for i in range(1, 12) %}
+            <option value="{{ i }}" {% if filters.avatar == i %}selected{% endif %}>{{ i }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Émotion</label>
+          <input type="text" name="emotion" value="{{ filters.emotion or '' }}" placeholder="ex: intimacy" class="input">
+        </div>
+
+        <div class="field">
+          <label class="field-label">Ambiance</label>
+          <input type="text" name="ambiance" value="{{ filters.ambiance or '' }}" placeholder="ex: cozy" class="input">
+        </div>
+
+        <div class="field">
+          <label class="field-label">Type</label>
+          <select name="image_type" class="select">
+            <option value="">— tous —</option>
+            {% for t in ['photo_real','anime_illustration','painting','flatlay_outfit','graphic_text','mixed'] %}
+            <option value="{{ t }}" {% if filters.image_type == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="row gap-sm">
+          <button type="submit" class="btn primary sm flex-1">Filtrer</button>
+          <a href="{{ url_for('images.index') }}" class="btn ghost sm">Reset</a>
+        </div>
+
+        <div class="text-xs muted" style="padding-top:12px; border-top:1px solid var(--hairline);">
+          {{ total }} image(s) correspondant aux filtres.
+        </div>
+      </form>
+    </div>
+
+    {# ───── Danger zone : bulk delete par fit ───── #}
+    <div class="card tight" style="margin-top:16px; border-color:rgba(178,34,52,0.25);">
+      <div class="field-label" style="color:var(--error); margin-bottom:6px;">Zone danger</div>
+      <div class="text-xs muted" style="margin-bottom:10px;">
+        Supprime toutes les images d'une catégorie (DB + disque). Irréversible.
+      </div>
+      <div class="stack" style="gap:6px;">
+        {% for f in ['off_brand', 'low', 'medium', 'high'] %}
+          {% set n = stats.by_fit.get(f, 0) %}
+          <button type="button"
+                  class="btn ghost sm"
+                  style="justify-content:space-between; width:100%; padding:6px 10px; font-size:12px; {% if n == 0 %}opacity:0.4; cursor:not-allowed;{% else %}color:var(--error);{% endif %}"
+                  {% if n == 0 %}disabled{% endif %}
+                  onclick="bulkDeleteByFit('{{ f }}', {{ n }})">
+            <span>🗑 {{ f }}</span>
+            <span class="mono">{{ n }}</span>
+          </button>
+        {% endfor %}
+      </div>
+    </div>
+  </aside>
+
+  <div>
+    {% if images %}
+    <div class="gallery">
+      {% for img in images %}
+      <div class="gallery-item fit-{{ img.compaatible_fit or 'unknown' }}" onclick="openImageDetail('{{ img.filename }}')">
+        <img src="{{ url_for('images.serve', filename=img.filename) }}" alt="" loading="lazy">
+        <span class="fit-dot" title="fit: {{ img.compaatible_fit }}"></span>
+        <div class="overlay">
+          <div>{{ img.image_type or '?' }} · {{ img.subject_type or '?' }}</div>
+          {% if img.suggested_avatars %}
+          <div class="meta">Avatars : {{ img.suggested_avatars|join(', ') }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if total_pages > 1 %}
+    <div class="pagination">
+      {% set base_args = {'fit': filters.fit, 'avatar': filters.avatar, 'emotion': filters.emotion, 'ambiance': filters.ambiance, 'image_type': filters.image_type, 'q': filters.q} %}
+      {% if page > 1 %}
+        <a href="{{ url_for('images.index', page=page-1, **base_args) }}" class="btn sm">← Précédent</a>
+      {% endif %}
+      <span>Page {{ page }} / {{ total_pages }}</span>
+      {% if page < total_pages %}
+        <a href="{{ url_for('images.index', page=page+1, **base_args) }}" class="btn sm">Suivant →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty">
+      <div class="em-title">Aucune image indexée pour ces filtres.</div>
+      {% if stats.unindexed > 0 %}
+      <div class="em-sub">Lance un premier batch pour annoter les {{ stats.unindexed }} images en attente.</div>
+      <div class="em-cta">
+        <form method="post" action="{{ url_for('images.batch_index') }}" style="display:inline;">
+          <input type="hidden" name="limit" value="20">
+          <button class="btn primary">Lancer un batch de 20 →</button>
+        </form>
+      </div>
+      {% else %}
+      <div class="em-sub">Essaie de réinitialiser les filtres.</div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</section>
+
+{# ───────────────── Modal détail ───────────────── #}
+<div id="image-detail-modal" class="modal-backdrop" onclick="if(event.target===this)closeImageDetail()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title mono" id="modal-title" style="font-family:'JetBrains Mono', monospace; font-size:13px;">—</div>
+      <button onclick="closeImageDetail()" class="modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid grid-2" style="gap:24px;">
+        <img id="modal-img" src="" alt="" style="width:100%; height:auto; border-radius: var(--radius);">
+        <div id="modal-meta" class="stack stack-md"></div>
+      </div>
+      <div class="row" style="justify-content:flex-end; padding-top:16px; margin-top:16px; border-top:1px solid var(--hairline);">
+        <button type="button" class="btn ghost sm danger" id="delete-img-btn"
+                onclick="deleteCurrentImage()" style="color:var(--error);">
+          Supprimer cette image (DB + disque)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let _currentImageFilename = null;
+
+  async function openImageDetail(filename) {
+    const modal = document.getElementById('image-detail-modal');
+    const img = document.getElementById('modal-img');
+    const title = document.getElementById('modal-title');
+    const meta = document.getElementById('modal-meta');
+    _currentImageFilename = filename;
+    img.src = `/images/serve/${encodeURIComponent(filename)}`;
+    title.textContent = filename;
+    meta.innerHTML = '<div class="muted">Chargement…</div>';
+    modal.classList.add('is-open');
+
+    const res = await fetch(`/images/${encodeURIComponent(filename)}/detail`);
+    if (res.ok) {
+      const data = await res.json();
+      meta.innerHTML = renderMeta(data.image);
+    } else {
+      meta.innerHTML = '<div style="color:var(--error);">Image non indexée.</div>';
+    }
+  }
+  function closeImageDetail() {
+    document.getElementById('image-detail-modal').classList.remove('is-open');
+    _currentImageFilename = null;
+  }
+
+  async function deleteCurrentImage() {
+    if (!_currentImageFilename) return;
+    const fn = _currentImageFilename;
+    if (!confirm(`Supprimer définitivement ${fn} ?\n\nLa row mkt_images sera supprimée, le fichier disque effacé, et les tweets qui pointaient sur cette image verront leur media_url remis à null. Irréversible.`)) return;
+
+    const btn = document.getElementById('delete-img-btn');
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'Suppression…';
+
+    try {
+      const res = await fetch(`/images/${encodeURIComponent(fn)}/delete`, {method: 'POST'});
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'erreur inconnue');
+
+      // Retirer la tuile de la galerie sans recharger toute la page
+      document.querySelectorAll('.gallery-item').forEach(el => {
+        if (el.getAttribute('onclick')?.includes(`'${fn}'`)) el.remove();
+      });
+      closeImageDetail();
+      // Petit toast léger en haut
+      flashToast(`Image supprimée · ${data.tweets_unlinked} tweet(s) déliés · fichier ${data.file_deleted ? 'effacé' : 'non trouvé'}`);
+    } catch (e) {
+      alert(`Suppression échouée : ${e.message}`);
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  }
+
+  function flashToast(msg) {
+    const t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed; top:20px; right:20px; background:var(--ink); color:#fff; padding:12px 16px; border-radius:6px; font-size:13px; z-index:9999; box-shadow:0 4px 12px rgba(0,0,0,0.2);';
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+
+  async function bulkDeleteByFit(fit, count) {
+    if (!count) return;
+    // Double confirmation : confirm normal + saisie du nom du fit pour les gros volumes
+    if (!confirm(`Supprimer DÉFINITIVEMENT les ${count} images en fit="${fit}" ?\n\nLa DB sera nettoyée, les fichiers disque effacés, les tweets qui pointaient sur ces images verront leur media_url remis à null. Irréversible.`)) return;
+    if (count > 20) {
+      const typed = prompt(`Plus de 20 images vont être supprimées. Tape exactement "${fit}" pour confirmer.`);
+      if (typed !== fit) {
+        alert('Annulation : confirmation invalide.');
+        return;
+      }
+    }
+
+    flashToast(`Suppression de ${count} images en cours…`);
+    try {
+      const res = await fetch('/images/bulk-delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({fit}),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'erreur');
+      flashToast(`OK · ${data.deleted} image(s) supprimée(s) · ${data.tweets_unlinked} tweet(s) déliés · ${data.files_deleted} fichier(s) effacé(s)`);
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (e) {
+      alert(`Suppression en masse échouée : ${e.message}`);
+    }
+  }
+
+  async function reclassifyCurrentImage(newFit) {
+    if (!_currentImageFilename || !newFit) return;
+    const fn = _currentImageFilename;
+    try {
+      const res = await fetch(`/images/${encodeURIComponent(fn)}/reclassify`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({fit: newFit}),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'erreur');
+
+      // Mettre à jour le pill dans le modal sans recharger
+      const fitClasses = {high:'ok', medium:'warn', low:'muted', off_brand:'err'};
+      document.querySelectorAll('#modal-meta .pill').forEach(p => {
+        if (['high','medium','low','off_brand'].includes(p.textContent.trim())) {
+          p.className = 'pill ' + (fitClasses[newFit] || 'muted');
+          p.textContent = newFit;
+        }
+      });
+
+      // Mettre à jour la tuile en galerie : classe + dot
+      document.querySelectorAll('.gallery-item').forEach(el => {
+        if (el.getAttribute('onclick')?.includes(`'${fn}'`)) {
+          el.classList.remove('fit-high','fit-medium','fit-low','fit-off_brand','fit-unknown');
+          el.classList.add(`fit-${newFit}`);
+        }
+      });
+
+      flashToast(`Reclassée en "${newFit}"`);
+    } catch (e) {
+      alert(`Reclassement échoué : ${e.message}`);
+    }
+  }
+  function renderMeta(m) {
+    const block = (label, val) => val ? `<div><div class="field-label" style="margin-bottom:4px;">${label}</div><div style="font-size:13.5px; line-height:1.55;">${val}</div></div>` : '';
+    const arr = (label, val) => val && val.length ? `<div><div class="field-label" style="margin-bottom:6px;">${label}</div><div style="display:flex; flex-wrap:wrap; gap:6px;">${val.map(v=>`<span class="tag">${v}</span>`).join('')}</div></div>` : '';
+    const fitClasses = {high:'ok', medium:'warn', low:'muted', off_brand:'err'};
+    const fitClass = fitClasses[m.compaatible_fit] || 'muted';
+    return `
+      ${block('Description', m.description ? m.description.replace(/\n/g,'<br>') : '')}
+      ${block('Marketing use', m.marketing_use)}
+      <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; padding-top:14px; border-top:1px solid var(--hairline);">
+        ${block('Image type', m.image_type)}
+        ${block('Subject', m.subject_type)}
+        ${block('Composition', m.composition)}
+        <div>
+          <div class="field-label" style="margin-bottom:6px;">Fit Compaatible</div>
+          <div class="row gap-sm" style="align-items:center;">
+            <span class="pill ${fitClass}">${m.compaatible_fit}</span>
+            <select onchange="if(this.value){reclassifyCurrentImage(this.value); this.value='';}"
+                    style="font-size:11.5px; padding:3px 6px; border:1px solid var(--hairline-strong); border-radius:4px; background:var(--paper);">
+              <option value="">Reclasser →</option>
+              <option value="high">high</option>
+              <option value="medium">medium</option>
+              <option value="low">low</option>
+              <option value="off_brand">off_brand</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      ${arr('Émotions', m.emotions)}
+      ${arr('Ambiance', m.ambiance)}
+      ${arr('Setting', m.setting)}
+      ${arr('Couleurs', m.colors)}
+      ${arr('Style tags', m.style_tags)}
+      ${arr('Avatars suggérés', m.suggested_avatars)}
+      ${m.usage_warning ? `<div class="alert warn"><span class="dot warn"></span><span>${m.usage_warning}</span></div>` : ''}
+    `;
+  }
+</script>
+
+{% endblock %}

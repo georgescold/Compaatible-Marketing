@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}{{ persona.first_name }} · Persona · Cockpit{% endblock %}
+{% block crumb %}Personas · {{ persona.first_name }}{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <a href="{{ url_for('personas.index') }}" class="text-xs muted" style="display:inline-block; margin-bottom:8px; text-decoration:none;">← Toutes les personas</a>
+    <h1>{{ persona.first_name }}</h1>
+    <p class="sub">
+      {% if persona.age %}<span class="ink">{{ persona.age }} ans</span>{% endif %}
+      · <span class="pill">Avatar {{ persona.avatar_id_primary or '?' }}</span>
+      {% if persona.avatar_id_secondary %}<span class="muted text-xs">+ secondaire {{ persona.avatar_id_secondary }}</span>{% endif %}
+      {% if persona.source_handle %} · source <span class="mono">@{{ persona.source_handle }}</span>{% endif %}
+    </p>
+  </div>
+</header>
+
+{# ───────── Stats ───────── #}
+<section class="grid grid-4 mb-lg">
+  <div class="card tight metric">
+    <div class="label">Runs</div>
+    <div class="value" style="font-size:26px;">{{ persona.runs_count or 0 }}</div>
+  </div>
+  <div class="card tight metric">
+    <div class="label">Tweets totaux</div>
+    <div class="value" style="font-size:26px;">{{ persona.tweets_count or 0 }}</div>
+  </div>
+  <div class="card tight metric">
+    <div class="label">Coût cumulé</div>
+    <div class="value" style="font-size:26px;">${{ "%.3f"|format(persona.total_cost_usd or 0) }}</div>
+  </div>
+  <div class="card tight metric">
+    <div class="label">Dernier run</div>
+    <div class="value" style="font-size:14px; font-family:'JetBrains Mono', monospace;">
+      {{ persona.last_run_at.strftime('%Y-%m-%d %H:%M') if persona.last_run_at else '—' }}
+    </div>
+  </div>
+</section>
+
+{# ───────── Téléchargements CSV ───────── #}
+<section class="card mb-lg">
+  <h3 class="card-title">Fichiers CSV</h3>
+  <div class="stack stack-sm">
+
+    <div class="row" style="justify-content:space-between; align-items:center; gap:16px;">
+      <div>
+        <strong>CSV initial (source)</strong>
+        <div class="muted text-xs" style="margin-top:2px;">
+          {% if source_csv_available %}
+          Le CSV à partir duquel <em>{{ persona.first_name }}</em> a émergé · run racine #{{ root_run.id }}
+          {% if root_run.source_handle %} · @{{ root_run.source_handle }}{% endif %}
+          {% else %}
+          {% if root_run %}
+          Le run racine #{{ root_run.id }} n'a plus de fichier sur disque.
+          {% else %}
+          Aucun run avec CSV archivé pour cette persona (peut-être créée par extension seulement).
+          {% endif %}
+          {% endif %}
+        </div>
+      </div>
+      {% if source_csv_available %}
+      <a href="{{ url_for('personas.download_source_csv', persona_id=persona.id) }}" class="btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Télécharger
+      </a>
+      {% else %}
+      <span class="pill muted">Indisponible</span>
+      {% endif %}
+    </div>
+
+    <hr>
+
+    <div class="row" style="justify-content:space-between; align-items:center; gap:16px;">
+      <div>
+        <strong>CSV Cortex agrégé (sortie)</strong>
+        <div class="muted text-xs" style="margin-top:2px;">
+          Tous les tweets adaptés de <em>{{ persona.first_name }}</em> (runs et extensions confondus, statuts draft/approved) au format Cortex prêt à poster.
+          {% if persona.tweets_count %}<br>{{ persona.tweets_count }} tweet(s) éligibles.{% endif %}
+        </div>
+      </div>
+      {% if persona.tweets_count and persona.tweets_count > 0 %}
+      <a href="{{ url_for('personas.download_cortex_csv', persona_id=persona.id) }}" class="btn primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Télécharger
+      </a>
+      {% else %}
+      <span class="pill muted">Aucun tweet</span>
+      {% endif %}
+    </div>
+
+  </div>
+</section>
+
+{# ───────── Identité ───────── #}
+<section class="card mb-lg">
+  <h3 class="card-title">Identité</h3>
+  <div class="stack stack-sm">
+    {% if persona.bio_twitter %}
+    <div>
+      <div class="field-label">Bio Twitter</div>
+      <p class="italic-serif" style="font-size:16px; margin:4px 0 0;">« {{ persona.bio_twitter }} »</p>
+    </div>
+    {% endif %}
+    {% if persona.backstory %}
+    <div>
+      <div class="field-label">Backstory</div>
+      <p style="margin:4px 0 0; line-height:1.55;">{{ persona.backstory }}</p>
+    </div>
+    {% endif %}
+    {% if persona.voice_signature %}
+    <div>
+      <div class="field-label">Voice signature</div>
+      <p style="margin:4px 0 0; line-height:1.55;" class="muted">{{ persona.voice_signature }}</p>
+    </div>
+    {% endif %}
+    {% if persona.vocabulary_yes or persona.vocabulary_no %}
+    <div class="grid grid-2">
+      {% if persona.vocabulary_yes %}
+      <div>
+        <div class="field-label">Vocabulaire ✓</div>
+        <div style="margin-top:4px;">
+          {% for w in persona.vocabulary_yes %}<span class="pill ok" style="margin:2px;">{{ w }}</span>{% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if persona.vocabulary_no %}
+      <div>
+        <div class="field-label">Vocabulaire ✗</div>
+        <div style="margin-top:4px;">
+          {% for w in persona.vocabulary_no %}<span class="pill" style="margin:2px;">{{ w }}</span>{% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if persona.profile_photo_prompt %}
+    <details>
+      <summary class="field-label" style="cursor:pointer;">Prompt photo de profil (cliquer pour voir)</summary>
+      <p class="mono" style="font-size:12px; margin-top:8px; padding:12px; background:var(--cream); border-radius:8px; line-height:1.5;">{{ persona.profile_photo_prompt }}</p>
+    </details>
+    {% endif %}
+    {% if persona.banner_prompt %}
+    <details>
+      <summary class="field-label" style="cursor:pointer;">Prompt bannière Twitter — 1500×500 (cliquer pour voir)</summary>
+      <p class="mono" style="font-size:12px; margin-top:8px; padding:12px; background:var(--cream); border-radius:8px; line-height:1.5;">{{ persona.banner_prompt }}</p>
+    </details>
+    {% endif %}
+  </div>
+</section>
+
+{# ───────── Runs liés ───────── #}
+<section class="mb-lg">
+  <div class="section-row">
+    <h2 class="section-title">Runs de cette persona</h2>
+    {% if runs %}<span class="section-meta">{{ runs|length }} run(s)</span>{% endif %}
+  </div>
+
+  {% if runs %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th style="width:60px;">#</th>
+          <th>Source</th>
+          <th>Status</th>
+          <th class="num">Source → Output</th>
+          <th class="num">Coût</th>
+          <th>Date</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td class="mono dim">{{ r.id }}</td>
+          <td>
+            <div class="row-name">{{ r.source_csv_name[:60] }}</div>
+            {% if r.parent_run_id %}<div class="row-sub muted text-xs">← parent #{{ r.parent_run_id }}</div>{% endif %}
+          </td>
+          <td>
+            {% if r.status == 'completed' %}<span class="pill ok">{{ r.status }}</span>
+            {% elif r.status == 'completed_partial' %}<span class="pill warn" title="Run interrompu (ex: quota API). Voir le détail.">partial</span>
+            {% elif r.status == 'running' %}<span class="pill">{{ r.status }}</span>
+            {% elif r.status == 'failed' %}<span class="pill err">{{ r.status }}</span>
+            {% else %}<span class="pill muted">{{ r.status }}</span>{% endif %}
+          </td>
+          <td class="num">{{ r.source_tweets_count or '?' }} → {{ r.output_tweets_count or '?' }}</td>
+          <td class="num">{% if r.cost_usd %}${{ "%.3f"|format(r.cost_usd) }}{% else %}—{% endif %}</td>
+          <td class="dim">{{ r.started_at.strftime('%Y-%m-%d %H:%M') if r.started_at else '' }}</td>
+          <td><a href="{{ url_for('tweets.show_run', run_id=r.id) }}" class="text-burgundy" style="font-weight:500;">Ouvrir →</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+
+{# ───────── Danger : suppression complète ───────── #}
+<section class="card">
+  <h3 class="card-title">Danger</h3>
+  <form method="post" action="{{ url_for('personas.delete', persona_id=persona.id) }}"
+        onsubmit="return confirm('Supprimer la persona « {{ persona.first_name }} » et TOUT ce qui y est lié ?\n\nCela supprimera {{ runs|length }} run(s) et {{ persona.tweets_count or 0 }} tweet(s). Action IRRÉVERSIBLE.');">
+    <p class="muted text-xs mb-sm">Supprime définitivement la persona, tous ses runs et tous ses tweets associés. Aucune annulation possible.</p>
+    <button type="submit" class="btn ghost danger">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      Supprimer cette persona (cascade complète)
+    </button>
+  </form>
+</section>
+
+{% endblock %}

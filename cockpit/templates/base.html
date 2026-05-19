@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Compaatible Marketing Cockpit{% endblock %}</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Cormorant+Garamond:ital,wght@1,400;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+
+  <div class="screen">
+
+    {# ─────────────────────────── SIDEBAR ─────────────────────────── #}
+    <aside class="sidebar">
+
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+        </span>
+        <span class="brand-name">Compaatible</span>
+        <span class="brand-version">v1.0</span>
+      </div>
+
+      {% set current = request.endpoint or '' %}
+
+      <div>
+        <div class="nav-section">Cockpit</div>
+        <nav class="nav">
+          {% set links = [
+            ('dashboard.index', 'Dashboard', 'home',    None,           0),
+            ('tweets.index',    'Tweets',    'feather', tweets_count,   tweets_running),
+            ('personas.index',  'Personas',  'user',    None,           0),
+            ('images.index',    'Images',    'image',   images_count,   images_running),
+            ('knowledge.index', 'Knowledge', 'book',    None,           0),
+          ] %}
+          {% for endpoint, label, icon, count, running in links %}
+            {% set ns = endpoint.split('.')[0] %}
+            {% set is_active = current.startswith(ns) %}
+            <a href="{{ url_for(endpoint) }}" class="nav-item {% if is_active %}active{% endif %}">
+              <span class="nav-item-label">
+                {% if icon == 'home' %}
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1V9.5z"/></svg>
+                {% elif icon == 'feather' %}
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+                {% elif icon == 'image' %}
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>
+                {% elif icon == 'book' %}
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                {% elif icon == 'user' %}
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                {% endif %}
+                <span>{{ label }}</span>
+                {% if running and running > 0 %}<span class="sidebar-live-dot" title="{{ running }} run(s) en cours"></span>{% endif %}
+              </span>
+              {% if count is not none and count > 0 %}<span class="count">{{ count }}</span>{% endif %}
+            </a>
+          {% endfor %}
+        </nav>
+      </div>
+
+      {% if (tweets_running and tweets_running > 0) or (images_running and images_running > 0) %}
+      <div>
+        <div class="nav-section">En cours</div>
+        <nav class="nav">
+          {% for rid in active_tweet_run_ids %}
+            <a href="{{ url_for('tweets.show_run', run_id=rid) }}" class="nav-item {% if request.view_args and request.view_args.get('run_id') == rid %}active{% endif %}">
+              <span class="nav-item-label">
+                <span class="sidebar-live-dot"></span>
+                <span>Run tweets #{{ rid }}</span>
+              </span>
+            </a>
+          {% endfor %}
+          {% for bid in active_image_batch_ids %}
+            <a href="{{ url_for('images.batch_show', batch_id=bid) }}" class="nav-item {% if request.view_args and request.view_args.get('batch_id') == bid %}active{% endif %}">
+              <span class="nav-item-label">
+                <span class="sidebar-live-dot"></span>
+                <span>Batch images #{{ bid }}</span>
+              </span>
+            </a>
+          {% endfor %}
+        </nav>
+      </div>
+      {% endif %}
+
+      <div>
+        <div class="nav-section">Système</div>
+        <nav class="nav">
+          {% set is_api_keys = current.startswith('api_keys') %}
+          <a href="{{ url_for('api_keys.index') }}" class="nav-item {% if is_api_keys %}active{% endif %}">
+            <span class="nav-item-label">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+              <span>API</span>
+            </span>
+          </a>
+
+          {% set is_settings = current.startswith('settings') %}
+          <a href="{{ url_for('settings.index') }}" class="nav-item {% if is_settings %}active{% endif %}">
+            <span class="nav-item-label">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.07a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.07a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.07a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span>Settings</span>
+            </span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-foot">
+        <div class="avatar">L</div>
+        <div>
+          <div class="who">Loys</div>
+          <div class="role">Founder</div>
+        </div>
+      </div>
+
+    </aside>
+
+    {# ─────────────────────────── MAIN ────────────────────────────── #}
+    <main class="main">
+
+      <div class="topbar">
+        <div class="crumbs">
+          <span>Cockpit</span>
+          <span class="sep">/</span>
+          <span class="here">{% block crumb %}Dashboard{% endblock %}</span>
+        </div>
+        <div class="topbar-actions">
+          <div class="search">
+            <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" placeholder="Rechercher dans le cockpit">
+            <span class="kbd">⌘K</span>
+          </div>
+          {% block topbar_actions %}{% endblock %}
+        </div>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="stack stack-sm mb-md">
+            {% for cat, msg in messages %}
+              <div class="alert {% if cat == 'success' %}ok{% elif cat == 'error' %}err{% elif cat == 'warning' %}warn{% endif %}">
+                {% if cat == 'success' %}<span class="dot ok"></span>
+                {% elif cat == 'error' %}<span class="dot err"></span>
+                {% elif cat == 'warning' %}<span class="dot warn"></span>
+                {% else %}<span class="dot accent"></span>{% endif %}
+                <span>{{ msg }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+
+    </main>
+
+  </div>
+
+</body>
+</html>

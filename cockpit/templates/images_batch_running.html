@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+{% block title %}Batch images #{{ batch.batch_id }} · Cockpit{% endblock %}
+{% block crumb %}Images · Batch #{{ batch.batch_id }}{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <a href="{{ url_for('images.index') }}" class="text-xs muted" style="display:inline-block; margin-bottom:8px;">← Galerie images</a>
+    <span class="eyebrow"><span class="live-dot" id="live-dot"></span> Indexation en cours · batch #{{ batch.batch_id }}</span>
+    <h1>Annotation Vision en cours</h1>
+    <p class="sub">
+      Modèle <span class="mono">{{ batch.model }}</span> ·
+      <span class="mono"><span id="processed">{{ batch.processed }}</span>/<span id="total">{{ batch.total }}</span></span> images traitées ·
+      <span class="mono" id="elapsed">0s</span>
+    </p>
+  </div>
+</header>
+
+<div class="grid" style="grid-template-columns: 1fr 1fr; gap: 32px;">
+
+  {# ─── Colonne gauche : progression + métriques ─── #}
+  <div>
+    <div class="section-row">
+      <h2 class="section-title">Progression</h2>
+      <span class="section-meta" id="status-meta">Initialisation…</span>
+    </div>
+
+    <div class="card tight" style="margin-bottom:18px;">
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+        <div class="progress-meta">
+          <span class="mono" id="progress-pct">0%</span>
+          <span class="muted text-xs" id="progress-eta"></span>
+        </div>
+      </div>
+
+      <div class="current-row" id="current-row" style="display:none;">
+        <span class="dot pulse"></span>
+        <span class="text-xs muted">En cours</span>
+        <span class="mono" id="current-filename" style="font-size:12px;">—</span>
+      </div>
+    </div>
+
+    <div class="grid grid-3 mb-md" style="gap:12px;">
+      <div class="card tight metric">
+        <div class="label">OK</div>
+        <div class="value" style="font-size:24px; color: var(--success);" id="ok-count">{{ batch.ok_count }}</div>
+      </div>
+      <div class="card tight metric">
+        <div class="label">Erreurs</div>
+        <div class="value" style="font-size:24px; color: var(--error);" id="err-count">{{ batch.error_count }}</div>
+      </div>
+      <div class="card tight metric">
+        <div class="label">Coût estimé</div>
+        <div class="value mono" style="font-size:18px;" id="cost">$0.000</div>
+      </div>
+    </div>
+
+    <div class="card tight">
+      <div class="field-label mb-sm">Répartition fit</div>
+      <div class="fit-bars">
+        <div class="fit-bar"><span class="fit-bar-label">high</span><span class="fit-bar-track"><span class="fit-bar-fill fit-high" id="fit-bar-high"></span></span><span class="mono fit-bar-n" id="fit-n-high">0</span></div>
+        <div class="fit-bar"><span class="fit-bar-label">medium</span><span class="fit-bar-track"><span class="fit-bar-fill fit-medium" id="fit-bar-medium"></span></span><span class="mono fit-bar-n" id="fit-n-medium">0</span></div>
+        <div class="fit-bar"><span class="fit-bar-label">low</span><span class="fit-bar-track"><span class="fit-bar-fill fit-low" id="fit-bar-low"></span></span><span class="mono fit-bar-n" id="fit-n-low">0</span></div>
+        <div class="fit-bar"><span class="fit-bar-label">off_brand</span><span class="fit-bar-track"><span class="fit-bar-fill fit-off" id="fit-bar-off_brand"></span></span><span class="mono fit-bar-n" id="fit-n-off_brand">0</span></div>
+      </div>
+    </div>
+
+    <div class="card tight mt-md" style="font-size:12.5px; line-height:1.7;">
+      <div class="field-label mb-sm">Pourquoi ça prend du temps ?</div>
+      <div class="muted">
+        Chaque image est encodée en base64 puis envoyée à Claude Vision avec ~30k tokens de contexte (brief produit + avatars). Le 1er appel n'est pas en cache, les suivants le sont. Compte ~3 à 8 secondes par image selon la taille.
+      </div>
+    </div>
+  </div>
+
+  {# ─── Colonne droite : miniatures récentes + log ─── #}
+  <div>
+    <div class="section-row">
+      <h2 class="section-title">Dernières images annotées</h2>
+      <span class="section-meta">Plus récentes en haut</span>
+    </div>
+
+    <div class="card flush" style="overflow:hidden; margin-bottom:18px;">
+      <div id="recent-grid" class="recent-grid">
+        <div class="recent-empty">En attente de la première image…</div>
+      </div>
+    </div>
+
+    <div class="section-row">
+      <h2 class="section-title">Journal en direct</h2>
+      <span class="section-meta">Mise à jour toutes les 1.5s</span>
+    </div>
+
+    <div class="card flush" style="overflow:hidden;">
+      <div id="log-pane" class="log-pane">
+        <div class="log-empty">En attente du premier événement…</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+  .live-dot {
+    display:inline-block; width:8px; height:8px; border-radius:50%;
+    background: var(--burgundy); margin-right:8px;
+    animation: pulse 1.6s ease-in-out infinite; vertical-align:middle;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .progress-wrap { display:flex; flex-direction:column; gap:8px; }
+  .progress-bar {
+    width:100%; height:10px; background: var(--cream);
+    border-radius: 999px; overflow:hidden;
+    border: 1px solid var(--hairline);
+  }
+  .progress-fill {
+    height:100%; background: var(--burgundy);
+    transition: width 400ms var(--ease-out);
+    border-radius: 999px;
+  }
+  .progress-meta {
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-variant-numeric: tabular-nums;
+  }
+  .progress-meta .mono { font-size:14px; color: var(--ink); font-weight:500; }
+
+  .current-row {
+    align-items:center; gap:10px;
+    margin-top:14px; padding-top:14px;
+    border-top: 1px solid var(--hairline);
+  }
+  .dot.pulse {
+    width:8px; height:8px; border-radius:50%;
+    background: var(--burgundy);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+
+  .fit-bars { display:flex; flex-direction:column; gap:8px; }
+  .fit-bar { display:grid; grid-template-columns:80px 1fr 36px; gap:10px; align-items:center; }
+  .fit-bar-label { font-size:12px; color: var(--ink-soft); }
+  .fit-bar-track {
+    height:8px; background: var(--cream); border-radius:999px;
+    overflow:hidden; border:1px solid var(--hairline);
+    display:block;
+  }
+  .fit-bar-fill { display:block; height:100%; width:0%; transition: width 400ms var(--ease-out); border-radius:999px; }
+  .fit-bar-fill.fit-high { background: var(--success); }
+  .fit-bar-fill.fit-medium { background: var(--warning); }
+  .fit-bar-fill.fit-low { background: var(--muted); }
+  .fit-bar-fill.fit-off { background: var(--error); }
+  .fit-bar-n { font-size:12px; color: var(--ink-soft); text-align:right; font-variant-numeric: tabular-nums; }
+
+  .recent-grid {
+    display:grid; grid-template-columns: repeat(4, 1fr); gap:6px;
+    padding:10px; max-height:340px; overflow-y:auto;
+    background: var(--cream);
+  }
+  .recent-empty {
+    grid-column: 1 / -1; padding:32px 0; text-align:center;
+    color: var(--muted-soft); font-size:13px;
+  }
+  .recent-thumb {
+    position:relative; aspect-ratio:1; overflow:hidden;
+    border-radius: 6px; background: #fff;
+    border: 1px solid var(--hairline);
+  }
+  .recent-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .recent-thumb .fit-pill {
+    position:absolute; bottom:4px; left:4px;
+    padding:1px 6px; border-radius:999px;
+    font-size:9.5px; font-weight:600; letter-spacing:0.02em;
+    background: rgba(0,0,0,0.65); color:#fff;
+  }
+  .recent-thumb .fit-pill.fit-high { background: var(--success); }
+  .recent-thumb .fit-pill.fit-medium { background: var(--warning); color: var(--ink); }
+  .recent-thumb .fit-pill.fit-low { background: var(--muted); }
+  .recent-thumb .fit-pill.fit-off_brand { background: var(--error); }
+  .recent-thumb.is-error {
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(229, 57, 53, 0.08); border-color: var(--error);
+    font-size:10px; color: var(--error); padding:4px; text-align:center;
+    word-break: break-all;
+  }
+
+  .log-pane {
+    height: 240px; overflow-y:auto;
+    padding: 14px 18px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11.5px; line-height: 1.65;
+    color: var(--ink-soft); background: var(--cream);
+    border-radius: var(--radius-lg);
+  }
+  .log-pane .log-empty {
+    color: var(--muted-soft); text-align:center; padding:32px 0;
+    font-family:'Inter',sans-serif; font-size:13px;
+  }
+  .log-line { padding:3px 0; border-bottom:1px solid var(--hairline); }
+  .log-line:last-child { border-bottom:0; }
+  .log-line .log-ts { color: var(--muted-soft); margin-right:8px; }
+  .log-line .log-stage {
+    display:inline-block; min-width:42px; font-weight:500; margin-right:8px;
+  }
+  .log-line .log-stage.ok  { color: var(--success); }
+  .log-line .log-stage.err { color: var(--error); }
+  .log-line .log-stage.call { color: var(--burgundy); }
+  .log-line .log-stage.done { color: var(--success); }
+  .log-line .log-stage.fail { color: var(--error); }
+</style>
+
+<script>
+  const BATCH_ID = {{ batch.batch_id }};
+  const STATUS_URL = `/images/batch/${BATCH_ID}/status`;
+  const POLL_INTERVAL_MS = 1500;
+
+  function fmtDuration(s) {
+    if (s == null) return '';
+    if (s < 60) return s.toFixed(0) + 's';
+    const m = Math.floor(s / 60);
+    const ss = Math.floor(s % 60);
+    return `${m}m ${ss}s`;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function render(state) {
+    const total = state.total || 1;
+    const pct = Math.round((state.processed / total) * 100);
+
+    document.getElementById('processed').textContent = state.processed;
+    document.getElementById('total').textContent = state.total;
+    document.getElementById('elapsed').textContent = fmtDuration(state.elapsed_s);
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-pct').textContent = pct + '%';
+    document.getElementById('ok-count').textContent = state.ok_count;
+    document.getElementById('err-count').textContent = state.error_count;
+    document.getElementById('cost').textContent = '$' + (state.usage.cost_usd_estimate || 0).toFixed(3);
+
+    // ETA
+    if (state.processed > 0 && state.status === 'running') {
+      const avg = state.elapsed_s / state.processed;
+      const remaining = (state.total - state.processed) * avg;
+      document.getElementById('progress-eta').textContent = `~${fmtDuration(remaining)} restantes`;
+    } else if (state.status === 'completed') {
+      document.getElementById('progress-eta').textContent = `Terminé en ${fmtDuration(state.elapsed_s)}`;
+    } else if (state.status === 'failed') {
+      document.getElementById('progress-eta').textContent = 'Interrompu';
+    }
+
+    // Current
+    const curRow = document.getElementById('current-row');
+    if (state.current_filename && state.status === 'running') {
+      curRow.style.display = 'flex';
+      document.getElementById('current-filename').textContent = state.current_filename;
+    } else {
+      curRow.style.display = 'none';
+    }
+
+    // Fit bars (proportionnelles au plus grand)
+    const fits = ['high', 'medium', 'low', 'off_brand'];
+    const maxFit = Math.max(1, ...fits.map(f => state.by_fit[f] || 0));
+    fits.forEach(f => {
+      const n = state.by_fit[f] || 0;
+      const id = f === 'off_brand' ? 'off_brand' : f;
+      document.getElementById('fit-n-' + id).textContent = n;
+      document.getElementById('fit-bar-' + id).style.width = (n / maxFit * 100) + '%';
+    });
+
+    // Status meta
+    const meta = document.getElementById('status-meta');
+    if (state.status === 'completed') meta.textContent = `Terminé · ${state.ok_count}/${state.total} OK`;
+    else if (state.status === 'failed') meta.textContent = 'Échec · voir le journal';
+    else meta.textContent = `En cours · ${state.processed}/${state.total}`;
+
+    // Recent grid
+    const grid = document.getElementById('recent-grid');
+    if ((state.recent || []).length) {
+      grid.innerHTML = state.recent.map(r => {
+        if (r.ok) {
+          const fitClass = r.fit ? `fit-${r.fit}` : '';
+          const fitLabel = r.fit || '?';
+          return `
+            <div class="recent-thumb" title="${escapeHtml(r.filename)} · ${escapeHtml(r.image_type || '?')}">
+              <img src="/images/serve/${encodeURIComponent(r.filename)}" alt="" loading="lazy">
+              <span class="fit-pill ${fitClass}">${escapeHtml(fitLabel)}</span>
+            </div>`;
+        }
+        return `<div class="recent-thumb is-error" title="${escapeHtml(r.error || '')}">
+          ${escapeHtml(r.filename.slice(0, 18))}
+        </div>`;
+      }).join('');
+    }
+
+    // Log
+    const pane = document.getElementById('log-pane');
+    const lines = state.log_tail || [];
+    if (lines.length) {
+      const wasNearBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 30;
+      pane.innerHTML = lines.map(l => {
+        const ts = new Date(l.ts * 1000);
+        const hh = String(ts.getHours()).padStart(2, '0');
+        const mm = String(ts.getMinutes()).padStart(2, '0');
+        const ss = String(ts.getSeconds()).padStart(2, '0');
+        const stage = l.stage || '?';
+        return `<div class="log-line"><span class="log-ts">${hh}:${mm}:${ss}</span><span class="log-stage ${stage}">${stage}</span>${escapeHtml(l.text || '')}</div>`;
+      }).join('');
+      if (wasNearBottom) pane.scrollTop = pane.scrollHeight;
+    }
+  }
+
+  let consecutiveErrors = 0;
+  const MAX_BACKOFF_MS = 12000;
+
+  async function poll() {
+    try {
+      const res = await fetch(STATUS_URL, { cache: 'no-store' });
+      if (res.status === 404) {
+        document.getElementById('status-meta').textContent = 'Batch introuvable';
+        document.getElementById('live-dot').style.animation = 'none';
+        document.getElementById('live-dot').style.background = 'var(--muted)';
+        return;
+      }
+      if (!res.ok) {
+        consecutiveErrors++;
+        setTimeout(poll, Math.min(POLL_INTERVAL_MS * Math.pow(2, consecutiveErrors), MAX_BACKOFF_MS));
+        return;
+      }
+      consecutiveErrors = 0;
+      const state = await res.json();
+      render(state);
+
+      if (state.status === 'completed') {
+        document.getElementById('live-dot').style.background = 'var(--success)';
+        document.getElementById('live-dot').style.animation = 'none';
+        return;
+      }
+      if (state.status === 'failed') {
+        document.getElementById('live-dot').style.background = 'var(--error)';
+        document.getElementById('live-dot').style.animation = 'none';
+        return;
+      }
+      setTimeout(poll, POLL_INTERVAL_MS);
+    } catch (e) {
+      console.error('Polling failed', e);
+      consecutiveErrors++;
+      setTimeout(poll, Math.min(POLL_INTERVAL_MS * Math.pow(2, consecutiveErrors), MAX_BACKOFF_MS));
+    }
+  }
+
+  poll();
+</script>
+
+{% endblock %}
