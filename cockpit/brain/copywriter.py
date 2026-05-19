@@ -970,12 +970,38 @@ def _process_extension_chunk(
 
     parsed, total_usage = _parse_or_repair(result, model, sys_blocks, user_content, label=f"ext chunk {chunk_idx}/{total_chunks}")
     tweets = parsed.get("tweets", [])
+
+    # Retry-on-empty (meme rationale que _process_chunk : Gemini Pro thinking
+    # rend parfois tweets:[] alors que le JSON est valide).
     if not tweets:
         _log(
             f"ext chunk {chunk_idx}/{total_chunks} WARNING · JSON parse OK mais 0 tweet retourne · "
-            f"out_tokens={total_usage.get('output_tokens', 0)} · "
-            f"cause probable : budget max_tokens epuise par le thinking du modele"
+            f"out_tokens={total_usage.get('output_tokens', 0)} · retry avec temperature=0.6..."
         )
+        retry_result = llm_client.call_messages(
+            model=model,
+            system_blocks=sys_blocks,
+            messages=[{"role": "user", "content": user_content}],
+            max_tokens=32768,
+            temperature=0.6,
+        )
+        try:
+            retry_parsed, retry_usage = _parse_or_repair(retry_result, model, sys_blocks, user_content, label=f"ext chunk {chunk_idx}/{total_chunks} retry")
+            retry_tweets = retry_parsed.get("tweets", [])
+            for k in total_usage:
+                if k in retry_usage:
+                    total_usage[k] += retry_usage[k]
+            if retry_tweets:
+                _log(f"ext chunk {chunk_idx}/{total_chunks} retry OK · {len(retry_tweets)} tweet(s) recuperes")
+                tweets = retry_tweets
+            else:
+                _log(f"ext chunk {chunk_idx}/{total_chunks} retry ECHEC · toujours 0 tweet · on abandonne ce chunk")
+        except Exception as e:
+            _log(f"ext chunk {chunk_idx}/{total_chunks} retry ECHEC ({type(e).__name__}: {e}) · on abandonne ce chunk")
+            for k in total_usage:
+                if k in retry_result["usage"]:
+                    total_usage[k] += retry_result["usage"][k]
+
     return {"tweets": tweets, "usage": total_usage}
 
 
@@ -1025,13 +1051,41 @@ def _process_chunk(chunk: list[dict], content_col: str, playbook: dict, persona:
 
     parsed, total_usage = _parse_or_repair(result, model, sys_blocks, user_content, label=f"chunk {chunk_idx}/{total_chunks}")
     tweets = parsed.get("tweets", [])
+
+    # Retry-on-empty : sur les modeles thinking (Gemini Pro), il arrive que la
+    # reponse soit un JSON valide mais avec tweets:[] - le raisonnement a
+    # consomme trop sans laisser de place a la production. Sur 50 tweets en 3
+    # chunks, on a observe ~33% de chunks vides. On rejoue UNE fois avec une
+    # temperature plus basse pour casser le pattern de raisonnement.
     if not tweets:
         _log(
             f"chunk {chunk_idx}/{total_chunks} WARNING · JSON parse OK mais 0 tweet retourne · "
-            f"out_tokens={total_usage.get('output_tokens', 0)} · "
-            f"cause probable : budget max_tokens epuise par le thinking du modele "
-            f"(re-essaie avec max_tokens superieur ou modele non-thinking)"
+            f"out_tokens={total_usage.get('output_tokens', 0)} · retry avec temperature=0.5..."
         )
+        retry_result = llm_client.call_messages(
+            model=model,
+            system_blocks=sys_blocks,
+            messages=[{"role": "user", "content": user_content}],
+            max_tokens=32768,
+            temperature=0.5,
+        )
+        try:
+            retry_parsed, retry_usage = _parse_or_repair(retry_result, model, sys_blocks, user_content, label=f"chunk {chunk_idx}/{total_chunks} retry")
+            retry_tweets = retry_parsed.get("tweets", [])
+            for k in total_usage:
+                if k in retry_usage:
+                    total_usage[k] += retry_usage[k]
+            if retry_tweets:
+                _log(f"chunk {chunk_idx}/{total_chunks} retry OK · {len(retry_tweets)} tweet(s) recuperes")
+                tweets = retry_tweets
+            else:
+                _log(f"chunk {chunk_idx}/{total_chunks} retry ECHEC · toujours 0 tweet · on abandonne ce chunk")
+        except Exception as e:
+            _log(f"chunk {chunk_idx}/{total_chunks} retry ECHEC ({type(e).__name__}: {e}) · on abandonne ce chunk")
+            for k in total_usage:
+                if k in retry_result["usage"]:
+                    total_usage[k] += retry_result["usage"][k]
+
     return {"tweets": tweets, "usage": total_usage}
 
 
