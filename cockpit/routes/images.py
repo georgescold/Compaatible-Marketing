@@ -39,6 +39,9 @@ def index():
     total_pages = max(1, (total + per_page - 1) // per_page)
 
     api_key_set = is_api_key_configured()
+    settings = get_settings()
+    current_vision_model = settings.get("model_vision") or "claude-haiku-4-5-20251001"
+    batch_cap = vision_indexer.max_batch_size_for_model(current_vision_model)
 
     return render_template(
         "images.html",
@@ -49,6 +52,8 @@ def index():
         total_pages=total_pages,
         per_page=per_page,
         api_key_set=api_key_set,
+        batch_cap=batch_cap,
+        current_vision_model=current_vision_model,
         filters={
             "fit": fit_filter,
             "avatar": avatar,
@@ -150,8 +155,9 @@ def batch_index():
         flash(f"Clé API {provider} absente (modèle vision = {default_model}). Configure-la dans Settings.", "error")
         return redirect(url_for("images.index"))
 
+    cap = vision_indexer.max_batch_size_for_model(default_model)
     limit = request.form.get("limit", default=20, type=int)
-    limit = max(1, min(limit, 200))
+    limit = max(1, min(limit, cap))
 
     targets = vision_indexer.list_unindexed(limit=limit)
     if not targets:
@@ -174,8 +180,6 @@ def batch_index():
 @bp.route("/batch-index/launch", methods=["POST"])
 def batch_index_launch():
     """Étape 2 : confirmation preflight → lance vraiment le batch en arrière-plan."""
-    limit = request.form.get("limit", default=20, type=int)
-    limit = max(1, min(limit, 200))
     model = (request.form.get("model_vision") or "").strip()
     if not model:
         flash("Modèle vision manquant.", "error")
@@ -184,6 +188,9 @@ def batch_index_launch():
         provider = "Gemini" if model.startswith("gemini") else "Anthropic"
         flash(f"Clé API {provider} absente (modèle vision = {model}). Configure-la dans Settings.", "error")
         return redirect(url_for("images.index"))
+    cap = vision_indexer.max_batch_size_for_model(model)
+    limit = request.form.get("limit", default=20, type=int)
+    limit = max(1, min(limit, cap))
 
     targets = vision_indexer.list_unindexed(limit=limit)
     if not targets:

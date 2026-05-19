@@ -43,11 +43,11 @@
     <span class="eyebrow">Action disponible</span>
     <div class="card-title" style="color:#fff;">Indexer en batch</div>
     <div class="card-sub" style="color:rgba(255,255,255,0.8); margin-top:6px;">
-      {{ stats.unindexed }} images attendent. Tu choisiras le modèle et verras le coût estimé sur l'écran de confirmation.
+      {{ stats.unindexed }} images attendent. Modèle actuel : <strong>{{ current_vision_model }}</strong> · plafond batch : {{ batch_cap }}. Tu confirmes coût et modèle sur l'écran suivant.
     </div>
   </div>
   <form method="post" action="{{ url_for('images.batch_index') }}" class="row gap-sm shrink-0">
-    <input type="number" name="limit" value="20" min="1" max="200" class="input mono w-sm" style="background:rgba(255,255,255,0.94); color:var(--ink); border-color:transparent; max-width:90px;">
+    <input type="number" name="limit" value="20" min="1" max="{{ batch_cap }}" class="input mono w-sm" style="background:rgba(255,255,255,0.94); color:var(--ink); border-color:transparent; max-width:110px;">
     <button type="submit" class="btn" style="background:#fff; color:var(--burgundy); border-color:#fff;">
       Lancer
       <svg class="arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>

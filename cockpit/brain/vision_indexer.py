@@ -22,6 +22,37 @@ from config import Config
 SUPPORTED_FORMATS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
+# Plafond par batch d'indexation, calibre sur les quotas RPD du provider.
+# Anthropic tier standard et Gemini Pro sont contraints (Pro = 250 RPD).
+# Flash Lite (150k RPD) et Flash (10k RPD) permettent de tres gros batchs.
+_BATCH_CAPS_BY_MODEL: dict[str, int] = {
+    # Gemini Flash Lite : 150 000 RPD, on laisse pratiquement libre.
+    "gemini-3.1-flash-lite":  50000,
+    # Gemini Flash full : 10 000 RPD, large mais pas illimite.
+    "gemini-3-flash":          5000,
+    # Gemini Pro / Pro Preview : 250 RPD, cap conservateur.
+    "gemini-3.1-pro-preview":   200,
+    "gemini-3.1-pro":           200,
+    "gemini-3-pro":             200,
+    # Anthropic : pas de RPD strict mais rate-limit par minute selon le tier.
+    "claude-haiku-4-5-20251001": 500,
+    "claude-sonnet-4-6":         500,
+    "claude-opus-4-7":           300,
+}
+_BATCH_CAP_DEFAULT = 500
+
+
+def max_batch_size_for_model(model: str | None) -> int:
+    """Plafond legitime d'un batch d'indexation pour un modele donne.
+
+    Sert a borner l'input UI et les routes serveur pour eviter qu'un user
+    lance 10 000 indexations sur un modele qui a 250 RPD/jour.
+    """
+    if not model:
+        return _BATCH_CAP_DEFAULT
+    return _BATCH_CAPS_BY_MODEL.get(model, _BATCH_CAP_DEFAULT)
+
+
 def list_all_images() -> list[str]:
     """Liste tous les noms de fichiers images dans Config.IMAGES_DIR."""
     if not Config.IMAGES_DIR.exists():
