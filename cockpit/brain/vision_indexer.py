@@ -150,17 +150,31 @@ def build_system_for_vision() -> list[dict]:
                 "- les émotions générées chez le spectateur\n"
                 "- le style visuel (photo réelle / illustration / anime / flat-lay / vintage / etc.)\n"
                 "- la palette de couleurs dominante\n\n"
+                "## RÈGLE DURE — DROIT À L'IMAGE\n\n"
+                "Avant tout autre jugement, repère les **visages photo-réels clairement identifiables**. "
+                "Un visage est *clairement identifiable* quand un humain pourrait reconnaître la personne sur "
+                "la photo : traits distincts visibles (yeux, nez, bouche), photo nette, frontale ou trois-quarts, "
+                "pas une silhouette/contre-jour/flou/profil illisible/dos tourné, et **pas une illustration** "
+                "(anime, dessin, peinture sont OK même avec visage net). Si tu en vois au moins un :\n"
+                "- `clearly_identifiable_face` = `true`\n"
+                "- `compaatible_fit` = **`off_brand`** automatiquement, même si le reste de l'image est "
+                "parfaite. C'est une règle juridique (droit à l'image) qui prime sur l'esthétique.\n"
+                "- Mentionne brièvement dans `usage_warning` : « visage photo-réel identifiable — droit "
+                "à l'image ».\n"
+                "Sinon `clearly_identifiable_face` = `false` et tu juges `compaatible_fit` normalement.\n\n"
                 "Puis tu juges l'**adéquation Compaatible** (`compaatible_fit`) sur 4 niveaux :\n"
                 "- `high` : couple intime sans face très exposée, anime romantique chaleureux, mains, scènes "
                 "cozy, scènes contemplatives qui parlent à un avatar Compaatible. Palette compatible avec "
                 "burgundy/cream/warm.\n"
-                "- `medium` : utilisable avec contexte (text overlay, retouche, etc.). Visages identifiables "
-                "mais usage organique inspirationnel OK.\n"
+                "- `medium` : utilisable avec contexte (text overlay, retouche, etc.). Faces partiellement "
+                "visibles mais NON identifiables (silhouettes, profils flous, contre-jours), usage organique "
+                "inspirationnel OK.\n"
                 "- `low` : peu d'intérêt direct pour Compaatible (mariage très culturel, photos couple "
                 "tres engagées avec bague, etc.). À conserver pour cas rares.\n"
-                "- `off_brand` : luxe ostentatoire (yachts, voitures de sport, marques visibles), flat-lays "
-                "mode sans personne, vintage avec watermarks, photos sexy/pin-up, contenu sans rapport "
-                "avec une rencontre/relation. À ignorer.\n\n"
+                "- `off_brand` : visages photo-réels clairement identifiables (cf règle ci-dessus), luxe "
+                "ostentatoire (yachts, voitures de sport, marques visibles), flat-lays mode sans personne, "
+                "vintage avec watermarks, photos sexy/pin-up, contenu sans rapport avec une rencontre/"
+                "relation. À ignorer.\n\n"
                 "Pour `suggested_avatars` : array d'IDs (1-11) des avatars qui résoneraient avec l'image. "
                 "Vide si off_brand. Cohérence avec le ton de l'image.\n\n"
                 "**Format de sortie : JSON strict, rien d'autre, pas de bloc ``` :**\n\n"
@@ -170,6 +184,7 @@ def build_system_for_vision() -> list[dict]:
                 '  "subject_type": "couple | single_person | group | body_part | object_scene | nature | mixed",\n'
                 '  "people_count": 0,\n'
                 '  "faces_visible": false,\n'
+                '  "clearly_identifiable_face": false,\n'
                 '  "description": "Description ultra-détaillée en 8-15 lignes...",\n'
                 '  "marketing_use": "Comment utiliser cette image en marketing Compaatible (2-4 phrases).",\n'
                 '  "emotions": ["intimacy","warmth","melancholy"],\n'
@@ -223,6 +238,19 @@ def index_image(filename: str, model: str) -> dict[str, Any]:
         meta = parse_json_response(result["text"])
     except Exception as e:
         return {"ok": False, "error": f"JSON parse error: {e}", "raw": result["text"][:200], "filename": filename}
+
+    # Override "droit a l'image" : si visage photo-reel clairement identifiable,
+    # on force off_brand peu importe ce que le modele a propose. Garde-fou
+    # juridique : prime sur l'esthetique. On garde trace du downgrade dans
+    # usage_warning pour que l'utilisateur comprenne pourquoi l'image est OFF.
+    if meta.get("clearly_identifiable_face") is True:
+        original_fit = meta.get("compaatible_fit")
+        if original_fit != "off_brand":
+            meta["compaatible_fit"] = "off_brand"
+            note = "Visage photo-reel identifiable - droit a l'image (downgrade auto en off_brand)"
+            existing = (meta.get("usage_warning") or "").strip()
+            meta["usage_warning"] = f"{note}. {existing}".strip() if existing else note
+            meta["notes"] = (meta.get("notes") or "") + f" [auto: fit force off_brand (modele proposait {original_fit})]"
 
     # Enrichir
     meta["filename"] = filename
