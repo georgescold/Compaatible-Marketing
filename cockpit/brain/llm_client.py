@@ -64,12 +64,17 @@ def call_messages(
     max_tokens: int = 2048,
     temperature: float = 1.0,
     use_cache: bool = True,
+    thinking_budget: int | None = None,
 ) -> dict[str, Any]:
     """Dispatch vers le client adapté. Signature et format de retour identiques
     quel que soit le provider (cf. anthropic_client.call_messages docstring).
+
+    `thinking_budget` : option Gemini-specifique (ignoree pour Anthropic).
+    Force un budget thinking explicite en tokens. None = auto (defaut).
     """
     provider = provider_of(model)
     if provider == "anthropic":
+        # Anthropic ne supporte pas thinking_budget de la meme maniere ; on l'ignore.
         return anthropic_client.call_messages(
             model=model,
             system_blocks=system_blocks,
@@ -86,6 +91,7 @@ def call_messages(
         max_tokens=max_tokens,
         temperature=temperature,
         use_cache=use_cache,
+        thinking_budget=thinking_budget,
     )
 
 

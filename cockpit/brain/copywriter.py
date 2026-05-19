@@ -972,18 +972,21 @@ def _process_extension_chunk(
     tweets = parsed.get("tweets", [])
 
     # Retry-on-empty (meme rationale que _process_chunk : Gemini Pro thinking
-    # rend parfois tweets:[] alors que le JSON est valide).
+    # rend parfois tweets:[] alors que le JSON est valide). Retry combine
+    # thinking_budget genereux + temperature plus basse.
     if not tweets:
         _log(
             f"ext chunk {chunk_idx}/{total_chunks} WARNING · JSON parse OK mais 0 tweet retourne · "
-            f"out_tokens={total_usage.get('output_tokens', 0)} · retry avec temperature=0.6..."
+            f"out_tokens={total_usage.get('output_tokens', 0)} · "
+            f"retry avec thinking_budget=8192 + temperature=0.7..."
         )
         retry_result = llm_client.call_messages(
             model=model,
             system_blocks=sys_blocks,
             messages=[{"role": "user", "content": user_content}],
             max_tokens=32768,
-            temperature=0.6,
+            temperature=0.7,
+            thinking_budget=8192,
         )
         try:
             retry_parsed, retry_usage = _parse_or_repair(retry_result, model, sys_blocks, user_content, label=f"ext chunk {chunk_idx}/{total_chunks} retry")
@@ -1053,21 +1056,25 @@ def _process_chunk(chunk: list[dict], content_col: str, playbook: dict, persona:
     tweets = parsed.get("tweets", [])
 
     # Retry-on-empty : sur les modeles thinking (Gemini Pro), il arrive que la
-    # reponse soit un JSON valide mais avec tweets:[] - le raisonnement a
-    # consomme trop sans laisser de place a la production. Sur 50 tweets en 3
-    # chunks, on a observe ~33% de chunks vides. On rejoue UNE fois avec une
-    # temperature plus basse pour casser le pattern de raisonnement.
+    # reponse soit un JSON valide mais avec tweets:[] - typiquement le modele
+    # s'arrete trop tot (les chunks rates ont produit moins d'out_tokens que
+    # les chunks reussis, pas plus). Donc le retry combine DEUX leviers :
+    # 1) thinking_budget=8192 force le modele a mieux raisonner avant l'output
+    # 2) temperature=0.6 reduit la divergence aleatoire du raisonnement
+    # Pour Anthropic, thinking_budget est ignore proprement par le dispatcher.
     if not tweets:
         _log(
             f"chunk {chunk_idx}/{total_chunks} WARNING · JSON parse OK mais 0 tweet retourne · "
-            f"out_tokens={total_usage.get('output_tokens', 0)} · retry avec temperature=0.5..."
+            f"out_tokens={total_usage.get('output_tokens', 0)} · "
+            f"retry avec thinking_budget=8192 + temperature=0.6..."
         )
         retry_result = llm_client.call_messages(
             model=model,
             system_blocks=sys_blocks,
             messages=[{"role": "user", "content": user_content}],
             max_tokens=32768,
-            temperature=0.5,
+            temperature=0.6,
+            thinking_budget=8192,
         )
         try:
             retry_parsed, retry_usage = _parse_or_repair(retry_result, model, sys_blocks, user_content, label=f"chunk {chunk_idx}/{total_chunks} retry")

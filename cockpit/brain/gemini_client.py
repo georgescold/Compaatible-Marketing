@@ -371,6 +371,7 @@ def call_messages(
     max_tokens: int = 2048,
     temperature: float = 1.0,
     use_cache: bool = True,
+    thinking_budget: int | None = None,
 ) -> dict[str, Any]:
     """Appelle l'API Gemini avec une signature compatible Anthropic.
 
@@ -476,6 +477,19 @@ def call_messages(
         config_kwargs["cached_content"] = cache_name
     elif system_for_request:
         config_kwargs["system_instruction"] = system_for_request
+
+    # Thinking budget explicite : par defaut Gemini Pro/Pro-Preview gere son
+    # budget thinking automatiquement, mais sur certains chunks il s'arrete trop
+    # tot et produit un JSON vide. Forcer un budget genereux pousse le modele a
+    # mieux raisonner avant de produire (mais ne garantit pas un succes).
+    # `thinking_budget=0` desactive completement le thinking (modeles non-Pro).
+    if thinking_budget is not None:
+        try:
+            config_kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_budget=thinking_budget
+            )
+        except Exception as e:
+            print(f"           gemini: thinking_config ignore ({type(e).__name__}: {e})", flush=True)
 
     # Structured Outputs natif : si le prompt mentionne JSON (cas 99% de notre
     # pipeline : analyze/persona/copywriter), on force Gemini à produire du JSON
