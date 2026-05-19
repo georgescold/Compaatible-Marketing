@@ -50,4 +50,6 @@ class Config:
         {"id": "claude-sonnet-4-6", "label": "Claude Sonnet 4.6 (équilibré, défaut copywriting)"},
         {"id": "claude-haiku-4-5-20251001", "label": "Claude Haiku 4.5 (rapide, défaut traduction/vision)"},
         {"id": "gemini-3.1-pro-preview", "label": "Gemini 3.1 Pro Preview (Google, meilleur rapport qualité/prix)"},
+        {"id": "gemini-3-flash", "label": "Gemini 3 Flash (Google, 4× moins cher que Pro, pas de thinking)"},
+        {"id": "gemini-3.1-flash-lite", "label": "Gemini 3.1 Flash Lite (Google, images uniquement · 150k req/jour)", "vision_only": True},
     ]

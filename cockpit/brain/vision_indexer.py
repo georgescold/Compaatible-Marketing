@@ -14,7 +14,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable
 
-from brain import anthropic_client, db, image_batch_state, prompts
+from brain import llm_client, db, image_batch_state, prompts
 from brain.source_analyzer import parse_json_response
 from config import Config
 
@@ -178,7 +178,7 @@ def index_image(filename: str, model: str) -> dict[str, Any]:
     ]
 
     try:
-        result = anthropic_client.call_messages(
+        result = llm_client.call_messages(
             model=model,
             system_blocks=build_system_for_vision(),
             messages=[{"role": "user", "content": user_content}],

@@ -127,10 +127,11 @@ def bulk_delete():
 
 @bp.route("/<path:filename>/index", methods=["POST"])
 def index_one(filename: str):
-    if not is_api_key_configured():
-        return jsonify({"ok": False, "error": "Clé API Anthropic absente."}), 400
     settings = get_settings()
     model = settings.get("model_vision") or "claude-haiku-4-5-20251001"
+    if not is_api_key_configured(model):
+        provider = "Gemini" if model.startswith("gemini") else "Anthropic"
+        return jsonify({"ok": False, "error": f"Clé API {provider} absente (modèle vision = {model})."}), 400
     result = vision_indexer.index_image(filename, model=model)
     return jsonify({"ok": result["ok"], "result": result if result["ok"] else None,
                     "error": result.get("error")})
@@ -142,10 +143,12 @@ def batch_index():
     affiche la page avec dropdown modèle + cost estimate live."""
     from brain import cost_estimator
 
-    if not is_api_key_configured():
-        flash("Clé API Anthropic absente. Configure-la dans Settings.", "error")
-        return redirect(url_for("images.index"))
     settings = get_settings()
+    default_model = settings.get("model_vision") or "claude-haiku-4-5-20251001"
+    if not is_api_key_configured(default_model):
+        provider = "Gemini" if default_model.startswith("gemini") else "Anthropic"
+        flash(f"Clé API {provider} absente (modèle vision = {default_model}). Configure-la dans Settings.", "error")
+        return redirect(url_for("images.index"))
 
     limit = request.form.get("limit", default=20, type=int)
     limit = max(1, min(limit, 200))
@@ -155,7 +158,6 @@ def batch_index():
         flash("Aucune image non annotée à traiter.", "info")
         return redirect(url_for("images.index"))
 
-    default_model = settings.get("model_vision") or "claude-haiku-4-5-20251001"
     cost = cost_estimator.estimate_vision_batch(model=default_model, n_images=len(targets))
 
     return render_template(
@@ -172,15 +174,15 @@ def batch_index():
 @bp.route("/batch-index/launch", methods=["POST"])
 def batch_index_launch():
     """Étape 2 : confirmation preflight → lance vraiment le batch en arrière-plan."""
-    if not is_api_key_configured():
-        flash("Clé API Anthropic absente.", "error")
-        return redirect(url_for("images.index"))
-
     limit = request.form.get("limit", default=20, type=int)
     limit = max(1, min(limit, 200))
     model = (request.form.get("model_vision") or "").strip()
     if not model:
         flash("Modèle vision manquant.", "error")
+        return redirect(url_for("images.index"))
+    if not is_api_key_configured(model):
+        provider = "Gemini" if model.startswith("gemini") else "Anthropic"
+        flash(f"Clé API {provider} absente (modèle vision = {model}). Configure-la dans Settings.", "error")
         return redirect(url_for("images.index"))
 
     targets = vision_indexer.list_unindexed(limit=limit)

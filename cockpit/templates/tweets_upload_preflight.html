@@ -33,18 +33,18 @@
       <div class="field">
         <label class="field-label">Analyse + persona</label>
         <select name="model_analysis" id="model_analysis" class="select">
-          {% for m in available_models %}
+          {% for m in available_models %}{% if not m.vision_only %}
           <option value="{{ m.id }}" {% if m.id == default_analysis %}selected{% endif %}>{{ m.label }}</option>
-          {% endfor %}
+          {% endif %}{% endfor %}
         </select>
         <p class="field-help">Utilisé pour le reverse-engineering et l'émergence de persona (2 appels API).</p>
       </div>
       <div class="field">
         <label class="field-label">Copywriting (adaptation)</label>
         <select name="model_adaptation" id="model_adaptation" class="select">
-          {% for m in available_models %}
+          {% for m in available_models %}{% if not m.vision_only %}
           <option value="{{ m.id }}" {% if m.id == default_adaptation %}selected{% endif %}>{{ m.label }}</option>
-          {% endfor %}
+          {% endif %}{% endfor %}
         </select>
         <p class="field-help">Utilisé pour la génération des tweets ({{ cost.chunks }} chunks de 20 tweets).</p>
       </div>

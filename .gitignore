@@ -39,4 +39,8 @@ desktop.ini
 
 # Large LFS artifacts (Twitter algorithm dump)
 x-algorithm/phoenix/artifacts/
+x-algorithm/.gitattributes
 *.npz
+
+# Claude Code local settings (per-user, ne pas commiter)
+.claude/settings.local.json

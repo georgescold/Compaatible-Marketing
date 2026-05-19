@@ -246,18 +246,58 @@ def _gemini_role(anthropic_role: str) -> str:
     return "user"
 
 
+def _block_to_gemini_parts(block: Any) -> list:
+    """Convertit un bloc Anthropic (texte ou image) en list[types.Part] Gemini.
+
+    - Bloc texte ({"type":"text","text":...} ou str) → Part.from_text
+    - Bloc image ({"type":"image","source":{"type":"base64","media_type":...,"data":...}})
+      → Part.from_bytes(data=bytes, mime_type=...)
+
+    Retourne une liste vide si le bloc est inutile (texte vide, format inconnu).
+    """
+    from google.genai import types
+    if isinstance(block, str):
+        return [types.Part.from_text(text=block)] if block else []
+    if not isinstance(block, dict):
+        return []
+    btype = block.get("type")
+    if btype == "text":
+        text = block.get("text") or ""
+        return [types.Part.from_text(text=text)] if text else []
+    if btype == "image":
+        src = block.get("source") or {}
+        if src.get("type") != "base64":
+            return []
+        media_type = src.get("media_type") or "image/jpeg"
+        b64_data = src.get("data") or ""
+        if not b64_data:
+            return []
+        import base64 as _b64
+        try:
+            raw = _b64.b64decode(b64_data)
+        except Exception:
+            return []
+        return [types.Part.from_bytes(data=raw, mime_type=media_type)]
+    return []
+
+
 def _build_gemini_contents(messages_normalized: list[dict]) -> list:
-    """Convertit messages normalisés en list[Content] Gemini."""
+    """Convertit messages normalisés en list[Content] Gemini.
+
+    Support multimodal : un message peut contenir texte + image. Les blocs image
+    sont convertis en types.Part.from_bytes (le SDK Gemini accepte les images
+    inline jusqu'à ~20 MB par appel).
+    """
     from google.genai import types
     contents = []
     for m in messages_normalized:
         role = _gemini_role(m["role"])
-        text = _blocks_to_text(m["content_list"])
-        if not text:
+        parts = []
+        for block in m["content_list"]:
+            parts.extend(_block_to_gemini_parts(block))
+        if not parts:
             continue
-        contents.append(
-            types.Content(role=role, parts=[types.Part.from_text(text=text)])
-        )
+        contents.append(types.Content(role=role, parts=parts))
     return contents
 
 
@@ -538,6 +578,7 @@ PRICING = {
     "gemini-3-pro":           {"input": 2.0,  "output": 12.0, "cache_read": 0.5,  "cache_write": 2.0},
     "gemini-3.1-pro":         {"input": 2.0,  "output": 12.0, "cache_read": 0.5,  "cache_write": 2.0},
     "gemini-3-flash":         {"input": 0.5,  "output": 3.0,  "cache_read": 0.125, "cache_write": 0.5},
+    "gemini-3.1-flash-lite":  {"input": 0.10, "output": 0.40, "cache_read": 0.025, "cache_write": 0.10},
 }
 
 

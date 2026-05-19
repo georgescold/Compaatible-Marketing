@@ -324,17 +324,18 @@
       </p>
 
       <div class="stack stack-md">
-        {% for field, label, hint, allow_gemini in [
-          ('model_translation', 'Traduction (ES → FR, EN → FR, etc.)', 'Haiku 4.5 recommandé : rapide, peu cher, suffisant.', True),
-          ('model_analysis', 'Analyse et détection persona', 'Haiku 4.5 ou Sonnet 4.6 selon précision voulue. Gemini 3.1 Pro = bon compromis qualité/prix.', True),
-          ('model_adaptation', 'Adaptation copywriting (cœur du pipeline)', 'Sonnet 4.6 par défaut. Gemini 3.1 Pro ~25% moins cher. Opus 4.7 pour la qualité maximale (4x plus cher).', True),
-          ('model_vision', 'Annotation images (Vision)', 'Haiku 4.5 recommandé pour le coût. Vision pas encore migrée pour Gemini → modèles Anthropic uniquement.', False),
+        {% for field, label, hint, is_vision in [
+          ('model_translation', 'Traduction (ES → FR, EN → FR, etc.)', 'Haiku 4.5 recommandé : rapide, peu cher, suffisant.', False),
+          ('model_analysis', 'Analyse et détection persona', 'Haiku 4.5 ou Sonnet 4.6 selon précision voulue. Gemini 3.1 Pro = bon compromis qualité/prix.', False),
+          ('model_adaptation', 'Adaptation copywriting (cœur du pipeline)', 'Sonnet 4.6 par défaut. Gemini 3.1 Pro ~25% moins cher. Opus 4.7 pour la qualité maximale (4x plus cher).', False),
+          ('model_vision', 'Annotation images (Vision)', 'Haiku 4.5 ou Gemini 3.1 Flash Lite (150k req/jour, 5× moins cher) pour les gros batchs d\'indexation.', True),
         ] %}
           <div class="field">
             <label class="field-label">{{ label }} <span class="live-price" data-for-field="{{ field }}"></span></label>
             <select name="{{ field }}" class="select" data-pricing-select="1">
               {% for m in models %}
-                {% if allow_gemini or not m.id.startswith('gemini') %}
+                {# vision_only models = uniquement dans le dropdown vision #}
+                {% if (is_vision or not m.vision_only) %}
                 <option value="{{ m.id }}" {% if settings[field] == m.id %}selected{% endif %}>{{ m.label }}</option>
                 {% endif %}
               {% endfor %}

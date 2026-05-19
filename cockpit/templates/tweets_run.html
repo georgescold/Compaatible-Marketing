@@ -1018,6 +1018,27 @@
                 }.get(t.adaptation_level, 'muted') %}
                 <span class="pill {{ lvl_class }}" title="Niveau d'adaptation (voir Source ↓ pour comparer)">{{ lvl_label }}</span>
               {% endif %}
+              {% if t.is_clivant %}
+                <span class="pill flammes" title="Tweet marqué clivant par l'IA · thèse incarnée qui divise (cf doctrine clivante du playbook)">clivant</span>
+              {% endif %}
+              {% if t.is_quote_trigger %}
+                <span class="pill architects" title="Tweet marqué quote-trigger par l'IA · pensé pour déclencher un RT cité (doctrine ~1/10)">quote-trigger</span>
+              {% endif %}
+              {% if t.integration_strategy and t.integration_strategy != 'none' %}
+                {% set strat_label = {
+                  'subtle_close': 'Pivot léger',
+                  'natural_pivot': 'Pivot naturel',
+                  'direct_mention': 'Compaatible nommée',
+                  'blog_pivot': 'Pivot blog'
+                }.get(t.integration_strategy, t.integration_strategy) %}
+                {% set strat_class = {
+                  'subtle_close': 'muted',
+                  'natural_pivot': 'gardiens',
+                  'direct_mention': 'ames',
+                  'blog_pivot': 'architects'
+                }.get(t.integration_strategy, 'muted') %}
+                <span class="pill {{ strat_class }}" title="Stratégie d'intégration Compaatible / pivot blog choisie par l'IA">{{ strat_label }}</span>
+              {% endif %}
               {% if t.mechanism_applied %}<span class="muted">→ {{ t.mechanism_applied }}</span>{% endif %}
             </div>
             {% if t.source_text %}

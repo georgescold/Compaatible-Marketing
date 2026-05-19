@@ -892,12 +892,18 @@ def _process_extension_chunk(
         model=model,
         system_blocks=sys_blocks,
         messages=[{"role": "user", "content": user_content}],
-        max_tokens=8192,
+        max_tokens=32768,
         temperature=0.95,
     )
 
     parsed, total_usage = _parse_or_repair(result, model, sys_blocks, user_content, label=f"ext chunk {chunk_idx}/{total_chunks}")
     tweets = parsed.get("tweets", [])
+    if not tweets:
+        _log(
+            f"ext chunk {chunk_idx}/{total_chunks} WARNING · JSON parse OK mais 0 tweet retourne · "
+            f"out_tokens={total_usage.get('output_tokens', 0)} · "
+            f"cause probable : budget max_tokens epuise par le thinking du modele"
+        )
     return {"tweets": tweets, "usage": total_usage}
 
 
@@ -941,12 +947,19 @@ def _process_chunk(chunk: list[dict], content_col: str, playbook: dict, persona:
         model=model,
         system_blocks=sys_blocks,
         messages=[{"role": "user", "content": user_content}],
-        max_tokens=8192,
+        max_tokens=32768,
         temperature=0.9,
     )
 
     parsed, total_usage = _parse_or_repair(result, model, sys_blocks, user_content, label=f"chunk {chunk_idx}/{total_chunks}")
     tweets = parsed.get("tweets", [])
+    if not tweets:
+        _log(
+            f"chunk {chunk_idx}/{total_chunks} WARNING · JSON parse OK mais 0 tweet retourne · "
+            f"out_tokens={total_usage.get('output_tokens', 0)} · "
+            f"cause probable : budget max_tokens epuise par le thinking du modele "
+            f"(re-essaie avec max_tokens superieur ou modele non-thinking)"
+        )
     return {"tweets": tweets, "usage": total_usage}
 
 
@@ -977,7 +990,7 @@ def _parse_or_repair(result: dict, model: str, system_blocks: list, original_use
                 {"role": "assistant", "content": result["text"]},
                 {"role": "user", "content": fix_prompt},
             ],
-            max_tokens=8192,
+            max_tokens=32768,
             temperature=0.2,
         )
         parsed = parse_json_response(retry["text"])  # peut encore lever → caller skip
@@ -1146,12 +1159,27 @@ def _insert_tweets_batch(tweets: list[dict], csv_run_id: int, persona_id: int,
                 "reasoning": t.get("reasoning"),
                 "needs_image": needs_img,
                 "image_brief": img_brief,
+                "is_quote_trigger": bool(t.get("is_quote_trigger")),
+                "is_clivant": bool(t.get("is_clivant")),
                 "char_count": len(part),
                 "status": "draft",
             })
 
     if not rows_to_insert:
         return 0
+
+    # Canonicalisation du pattern image dans les threads (règle dure) :
+    # un thread porte ses images soit sur TOUS les messages, soit uniquement T1,
+    # soit uniquement le dernier. Toute autre distribution est ramenée à l'un de
+    # ces patterns en retirant les flags needs_image excédentaires.
+    rows_to_insert, img_stats = _enforce_thread_image_pattern(rows_to_insert)
+    if img_stats["threads_canonicalized"]:
+        _log(
+            f"image pattern enforce · {img_stats['threads_canonicalized']} thread(s) "
+            f"recadré(s) sur pattern legal · {img_stats['flags_dropped']} flag(s) needs_image retiré(s) "
+            f"(répartition finale : all={img_stats['pattern_all']} · first={img_stats['pattern_first']} · "
+            f"last={img_stats['pattern_last']} · cleared={img_stats['pattern_none']})"
+        )
 
     # Régulation post-LLM de la mention "Compaatible" :
     # - tweet isolé qui nomme Compaatible → drop
@@ -1225,6 +1253,104 @@ def _insert_tweets_batch(tweets: list[dict], csv_run_id: int, persona_id: int,
     _audit_compaatible_mentions(rows_to_insert, csv_run_id=csv_run_id)
 
     return inserted
+
+
+def _enforce_thread_image_pattern(rows: list[dict]) -> tuple[list[dict], dict]:
+    """Canonicalise la distribution `needs_image` au sein de chaque thread.
+
+    Règle dure (cf prompts.py) : si un thread porte au moins une image, le pattern
+    doit être l'un de ces trois et aucun autre :
+    - ALL   : toutes les positions ont needs_image=true
+    - FIRST : seul le T1 (thread_order le plus petit) a needs_image=true
+    - LAST  : seul le dernier (thread_order le plus grand) a needs_image=true
+
+    Si le modèle a produit un pattern différent (ex: T2 seul, T1+T3, deux du
+    milieu), on snap au pattern legal le plus proche selon cette priorité :
+    1. Si T1 a needs_image=true → on garde FIRST, on retire les autres flags.
+    2. Sinon si le dernier a needs_image=true → on garde LAST, on retire les autres.
+    3. Sinon → on retire tous les flags du thread (ALL n'est pas inféré, c'est
+       trop agressif sans intention claire).
+
+    Les tweets isolés (thread_key=None) ne sont pas touchés.
+
+    Retire image_brief en même temps que needs_image pour cohérence DB.
+
+    Retourne (rows, stats) — la liste est mutée en place pour les flags.
+    """
+    stats = {
+        "threads_canonicalized": 0,
+        "flags_dropped": 0,
+        "pattern_all": 0,
+        "pattern_first": 0,
+        "pattern_last": 0,
+        "pattern_none": 0,
+    }
+    if not rows:
+        return rows, stats
+
+    # Groupe par thread_key (ignore les isolés)
+    threads: dict[str, list[dict]] = {}
+    for r in rows:
+        tk = r.get("thread_key")
+        if not tk:
+            continue
+        threads.setdefault(tk, []).append(r)
+
+    for tk, members in threads.items():
+        # Tri stable par thread_order (déjà numéroté à ce stade)
+        members.sort(key=lambda r: (r.get("thread_order") or 0))
+        n = len(members)
+        if n < 2:
+            # Thread d'1 seul tweet : géré comme isolé, on laisse tel quel
+            continue
+
+        flags = [bool(m.get("needs_image")) for m in members]
+        n_img = sum(flags)
+        if n_img == 0:
+            continue  # aucun flag, rien à faire
+
+        is_all = (n_img == n)
+        is_first_only = (flags[0] and n_img == 1)
+        is_last_only = (flags[-1] and n_img == 1)
+
+        if is_all:
+            stats["pattern_all"] += 1
+            continue
+        if is_first_only:
+            stats["pattern_first"] += 1
+            continue
+        if is_last_only:
+            stats["pattern_last"] += 1
+            continue
+
+        # Pattern non legal : on snap selon priorité T1 > dernier > clear-all
+        target = None
+        if flags[0]:
+            target = "first"
+        elif flags[-1]:
+            target = "last"
+        else:
+            target = "none"
+
+        for idx, m in enumerate(members):
+            keep = (
+                (target == "first" and idx == 0)
+                or (target == "last" and idx == n - 1)
+            )
+            if m.get("needs_image") and not keep:
+                m["needs_image"] = False
+                m["image_brief"] = None
+                stats["flags_dropped"] += 1
+
+        stats["threads_canonicalized"] += 1
+        if target == "first":
+            stats["pattern_first"] += 1
+        elif target == "last":
+            stats["pattern_last"] += 1
+        else:
+            stats["pattern_none"] += 1
+
+    return rows, stats
 
 
 def _enforce_compaatible_rules(
