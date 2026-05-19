@@ -18,6 +18,78 @@ _MENTION_RE = re.compile(r"@[A-Za-z0-9_]{1,15}")
 _URL_RE = re.compile(r"https?://\S+")
 
 
+def _clean_text_segment(text: str) -> str:
+    """Applique les regles typographiques a un segment hors-URL :
+    collapse espaces multiples, pas d'espace avant .!?;:,
+    et espace apres .!?;: si suivi d'une lettre (eviter "ça.Tu" → "ça. Tu").
+
+    On NE TOUCHE PAS aux virgules suivies de chiffres (decimaux "9,99") ni aux
+    points suivis de chiffres (versions "1.5"). Pour les autres ponctuations,
+    seules `.!?;:` declenchent l'ajout d'espace en aval.
+    """
+    if not text:
+        return text
+    # Collapse multiples espaces / tabs / nbsp en un seul espace (preserve \n)
+    text = re.sub(r"[ \t ]+", " ", text)
+    # Pas d'espace avant la ponctuation
+    text = re.sub(r" +([,.!?;:])", r"\1", text)
+    # Espace apres ,.!?;: si suivi directement d'une lettre (sentence/clause
+    # boundary collee par le LLM). On exige une lettre pour preserver les
+    # decimaux ("9,99" reste "9,99", "1.5" reste "1.5") et les version numbers.
+    text = re.sub(r"([,.!?;:])([A-Za-zÀ-ÿ])", r"\1 \2", text)
+    return text
+
+
+def _normalize_spacing(content: str) -> str:
+    """Normalisation typographique appliquée systematiquement a chaque tweet
+    avant insert DB et avant chaque édition manuelle.
+
+    - Collapse espaces multiples → 1 espace
+    - Pas d'espace avant `, . ! ? ; :`
+    - Espace après `.!?;:` quand suivi d'une lettre
+    - Garantit un espace entre du texte et une URL (et entre URL et texte)
+      sans toucher au contenu de l'URL
+    - Trim leading/trailing whitespace
+
+    Idempotent : safe à appliquer plusieurs fois.
+    """
+    if not content:
+        return content
+
+    # Découpe en segments alternés (texte, url, texte, url, …)
+    parts: list[tuple[str, str]] = []  # (kind, value)
+    last_end = 0
+    for m in _URL_RE.finditer(content):
+        if m.start() > last_end:
+            parts.append(("text", content[last_end:m.start()]))
+        parts.append(("url", m.group(0)))
+        last_end = m.end()
+    if last_end < len(content):
+        parts.append(("text", content[last_end:]))
+
+    if not parts:
+        return content.strip()
+
+    # Nettoyage des segments texte (les URLs sont intouchées)
+    parts = [(k, _clean_text_segment(v) if k == "text" else v) for k, v in parts]
+
+    # Recompose en garantissant un espace au joint si les deux côtés y sont collés
+    out: list[str] = []
+    for i, (kind, value) in enumerate(parts):
+        out.append(value)
+        if i + 1 >= len(parts):
+            continue
+        next_kind, next_val = parts[i + 1]
+        if not value or not next_val:
+            continue
+        last_char = value[-1]
+        first_char_next = next_val[0]
+        if not last_char.isspace() and not first_char_next.isspace():
+            out.append(" ")
+
+    return "".join(out).strip()
+
+
 def _names_compaatible(content: str | None) -> bool:
     """True si le mot "compaatible" apparaît dans le texte HORS URL.
 
@@ -1085,8 +1157,13 @@ def _insert_tweets_batch(tweets: list[dict], csv_run_id: int, persona_id: int,
 
     for t in tweets:
         raw = (t.get("content") or "").strip()
-        content = _strip_mentions(raw)
-        if content != raw:
+        # Normalisation typographique systematique (espaces, ponctuation, jonction URL)
+        # appliquee en premier pour que toutes les etapes suivantes (mention strip,
+        # dash sanitize, split en thread, audit char_count) voient le texte propre.
+        content = _normalize_spacing(raw)
+        before_mention_strip = content
+        content = _strip_mentions(content)
+        if content != before_mention_strip:
             stripped_mention_count += 1
         # Filet de sécurité cadratin/en-dash : remplacement hard avant tout split
         # pour que le compte de chars (≤280) reflète la version finale insérée.

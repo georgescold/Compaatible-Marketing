@@ -1221,6 +1221,14 @@
       if (!res.ok) {
         const data = await res.json();
         alert('Erreur : ' + (data.error || data.errors || 'inconnue'));
+        return;
+      }
+      // Si le backend a normalisé le texte (espaces, ponctuation, jonction URL),
+      // on reflète la version corrigée dans le textarea et le compteur de chars.
+      const data = await res.json();
+      if (field === 'content' && data.content !== undefined && data.content !== value) {
+        input.value = data.content;
+        if (typeof updateCharCount === 'function') updateCharCount(input);
       }
     }
 

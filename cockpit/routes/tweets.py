@@ -797,14 +797,18 @@ def edit_tweet(run_id: int, tweet_id: int):
     if not fields:
         return jsonify({"ok": False, "error": "Aucun champ à éditer."}), 400
 
-    # Valider content si édité
+    # Normalise + valide content si édité. La normalisation (espaces, ponctuation,
+    # jonction URL/texte) est appliquée AVANT la validation pour que l'utilisateur
+    # voie en DB la version finale "propre" et pas son brouillon avec espaces oubliés.
     if "content" in fields and fields["content"]:
+        from brain.copywriter import _normalize_spacing
+        fields["content"] = _normalize_spacing(fields["content"])
         v = cortex_validator.validate_content(fields["content"])
         if not v["ok"]:
             return jsonify({"ok": False, "errors": v["errors"], "warnings": v["warnings"]}), 400
 
     pipeline.update_tweet(tweet_id, **fields)
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "content": fields.get("content")})
 
 
 @bp.route("/runs/<int:run_id>/tweets/<int:tweet_id>/delete", methods=["POST"])
