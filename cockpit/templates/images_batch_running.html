@@ -4,7 +4,7 @@
 
 {% block content %}
 
-<header class="page-header">
+<header class="page-header" style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px;">
   <div>
     <a href="{{ url_for('images.index') }}" class="text-xs muted" style="display:inline-block; margin-bottom:8px;">← Galerie images</a>
     <span class="eyebrow"><span class="live-dot" id="live-dot"></span> Indexation en cours · batch #{{ batch.batch_id }}</span>
@@ -14,6 +14,12 @@
       <span class="mono"><span id="processed">{{ batch.processed }}</span>/<span id="total">{{ batch.total }}</span></span> images traitées ·
       <span class="mono" id="elapsed">0s</span>
     </p>
+  </div>
+  <div class="shrink-0">
+    <button type="button" id="stop-btn" class="btn ghost sm danger" onclick="requestStop()"
+            style="color:var(--error); border-color:rgba(229,57,53,0.4);">
+      Interrompre le batch
+    </button>
   </div>
 </header>
 
@@ -276,8 +282,22 @@
     // Status meta
     const meta = document.getElementById('status-meta');
     if (state.status === 'completed') meta.textContent = `Terminé · ${state.ok_count}/${state.total} OK`;
-    else if (state.status === 'failed') meta.textContent = 'Échec · voir le journal';
+    else if (state.status === 'failed') meta.textContent = state.error ? state.error.slice(0, 80) : 'Échec · voir le journal';
+    else if (state.stop_requested) meta.textContent = `Arrêt demandé · finit l'image en cours (${state.processed}/${state.total})`;
     else meta.textContent = `En cours · ${state.processed}/${state.total}`;
+
+    // Stop button : disable quand batch fini ou arrêt déjà demandé
+    const stopBtn = document.getElementById('stop-btn');
+    if (stopBtn) {
+      const running = state.status === 'running';
+      if (!running) {
+        stopBtn.disabled = true;
+        stopBtn.style.display = 'none';
+      } else if (state.stop_requested) {
+        stopBtn.disabled = true;
+        stopBtn.textContent = 'Arrêt demandé…';
+      }
+    }
 
     // Recent grid
     const grid = document.getElementById('recent-grid');
@@ -286,8 +306,10 @@
         if (r.ok) {
           const fitClass = r.fit ? `fit-${r.fit}` : '';
           const fitLabel = r.fit || '?';
+          const safeFn = escapeHtml(r.filename);
           return `
-            <div class="recent-thumb" title="${escapeHtml(r.filename)} · ${escapeHtml(r.image_type || '?')}">
+            <div class="recent-thumb is-clickable" title="${safeFn} · clic pour la description"
+                 data-filename="${safeFn}" style="cursor:pointer;">
               <img src="/images/serve/${encodeURIComponent(r.filename)}" alt="" loading="lazy">
               <span class="fit-pill ${fitClass}">${escapeHtml(fitLabel)}</span>
             </div>`;
@@ -355,6 +377,104 @@
   }
 
   poll();
+
+  // ─── Délégation : clic sur une vignette annotée → modale détail ─────────
+  document.getElementById('recent-grid').addEventListener('click', (e) => {
+    const thumb = e.target.closest('.recent-thumb.is-clickable');
+    if (!thumb) return;
+    const fn = thumb.dataset.filename;
+    if (fn) openImageDetail(fn);
+  });
+
+  async function openImageDetail(filename) {
+    const modal = document.getElementById('image-detail-modal');
+    const img = document.getElementById('modal-img');
+    const title = document.getElementById('modal-title');
+    const meta = document.getElementById('modal-meta');
+    img.src = `/images/serve/${encodeURIComponent(filename)}`;
+    title.textContent = filename;
+    meta.innerHTML = '<div class="muted">Chargement…</div>';
+    modal.classList.add('is-open');
+    try {
+      const res = await fetch(`/images/${encodeURIComponent(filename)}/detail`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        meta.innerHTML = renderMeta(data.image);
+      } else if (res.status === 404) {
+        meta.innerHTML = '<div style="color:var(--error);">Image pas encore en DB (annotation en cours ?).</div>';
+      } else {
+        meta.innerHTML = `<div style="color:var(--error);">Erreur ${res.status}</div>`;
+      }
+    } catch (err) {
+      meta.innerHTML = `<div style="color:var(--error);">${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function closeImageDetail() {
+    document.getElementById('image-detail-modal').classList.remove('is-open');
+  }
+
+  function renderMeta(m) {
+    const block = (label, val) => val ? `<div><div class="field-label" style="margin-bottom:4px;">${label}</div><div style="font-size:13.5px; line-height:1.55;">${val}</div></div>` : '';
+    const arr = (label, val) => val && val.length ? `<div><div class="field-label" style="margin-bottom:6px;">${label}</div><div style="display:flex; flex-wrap:wrap; gap:6px;">${val.map(v=>`<span class="tag">${escapeHtml(v)}</span>`).join('')}</div></div>` : '';
+    const fitClasses = {high:'ok', medium:'warn', low:'muted', off_brand:'err'};
+    const fitClass = fitClasses[m.compaatible_fit] || 'muted';
+    return `
+      ${block('Description', m.description ? escapeHtml(m.description).replace(/\n/g, '<br>') : '')}
+      ${block('Marketing use', m.marketing_use ? escapeHtml(m.marketing_use) : '')}
+      <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; padding-top:14px; border-top:1px solid var(--hairline);">
+        ${block('Image type', escapeHtml(m.image_type || ''))}
+        ${block('Subject', escapeHtml(m.subject_type || ''))}
+        ${block('Composition', escapeHtml(m.composition || ''))}
+        <div>
+          <div class="field-label" style="margin-bottom:6px;">Fit Compaatible</div>
+          <span class="pill ${fitClass}">${escapeHtml(m.compaatible_fit || '?')}</span>
+        </div>
+      </div>
+      ${arr('Émotions', m.emotions)}
+      ${arr('Ambiance', m.ambiance)}
+      ${arr('Setting', m.setting)}
+      ${arr('Couleurs', m.colors)}
+      ${arr('Style tags', m.style_tags)}
+      ${arr('Avatars suggérés', m.suggested_avatars)}
+      ${m.usage_warning ? `<div class="alert warn"><span class="dot warn"></span><span>${escapeHtml(m.usage_warning)}</span></div>` : ''}
+    `;
+  }
+
+  // ─── Bouton "Interrompre le batch" ──────────────────────────────────────
+  async function requestStop() {
+    const btn = document.getElementById('stop-btn');
+    if (!btn || btn.disabled) return;
+    if (!confirm("Interrompre le batch ?\n\nLe runner termine l'image en cours puis sort. Tout ce qui a déjà été annoté reste en DB.")) return;
+    btn.disabled = true;
+    btn.textContent = 'Arrêt demandé…';
+    try {
+      const res = await fetch(`/images/batch/${BATCH_ID}/stop`, { method: 'POST' });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'erreur');
+      // Le poll suivant verra status=failed avec le message d'interruption.
+    } catch (e) {
+      alert(`Échec de la demande d'arrêt : ${e.message}`);
+      btn.disabled = false;
+      btn.textContent = 'Interrompre le batch';
+    }
+  }
 </script>
+
+{# ───────────────── Modale détail image ───────────────── #}
+<div id="image-detail-modal" class="modal-backdrop" onclick="if(event.target===this)closeImageDetail()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title mono" id="modal-title" style="font-family:'JetBrains Mono', monospace; font-size:13px;">—</div>
+      <button onclick="closeImageDetail()" class="modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid grid-2" style="gap:24px;">
+        <img id="modal-img" src="" alt="" style="width:100%; height:auto; border-radius: var(--radius);">
+        <div id="modal-meta" class="stack stack-md"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 {% endblock %}

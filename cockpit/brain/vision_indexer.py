@@ -311,7 +311,13 @@ def index_batch_async(filenames: list[str], model: str) -> int:
 
     def _runner():
         try:
+            stopped_early = False
             for fn in filenames:
+                # Check stop flag avant chaque image. Sortie propre = on garde
+                # tout ce qui a deja ete annote, on ne supprime rien.
+                if image_batch_state.is_stop_requested(batch_id):
+                    stopped_early = True
+                    break
                 image_batch_state.mark_current(batch_id, fn)
                 try:
                     r = index_image(fn, model)
@@ -320,7 +326,13 @@ def index_batch_async(filenames: list[str], model: str) -> int:
                     traceback.print_exc(file=sys.stdout)
                     sys.stdout.flush()
                 image_batch_state.record_result(batch_id, fn, r)
-            image_batch_state.finalize(batch_id, success=True)
+            if stopped_early:
+                image_batch_state.finalize(
+                    batch_id, success=False,
+                    error="Batch interrompu par l'utilisateur (les images deja annotees sont conservees)."
+                )
+            else:
+                image_batch_state.finalize(batch_id, success=True)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             sys.stdout.flush()

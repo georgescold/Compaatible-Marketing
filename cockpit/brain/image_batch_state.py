@@ -52,6 +52,7 @@ def init(batch_id: int, total: int, model: str) -> None:
             "started_at": now,
             "ended_at": None,
             "error": None,
+            "stop_requested": False,
             "usage": {
                 "input_tokens": 0,
                 "cached_tokens": 0,
@@ -62,6 +63,28 @@ def init(batch_id: int, total: int, model: str) -> None:
             "recent": deque(maxlen=RECENT_IMAGES_KEEP),
             "log_tail": deque(maxlen=80),
         }
+
+
+def request_stop(batch_id: int) -> bool:
+    """Demande l'arret propre du batch. Retourne True si la demande a ete
+    enregistree (batch trouve et encore running), False sinon."""
+    with _lock:
+        s = _state.get(batch_id)
+        if not s or s.get("status") != "running":
+            return False
+        s["stop_requested"] = True
+        s["log_tail"].append({
+            "ts": time.time(),
+            "stage": "call",
+            "text": "Arret demande par l'utilisateur · sortie apres l'image en cours",
+        })
+        return True
+
+
+def is_stop_requested(batch_id: int) -> bool:
+    with _lock:
+        s = _state.get(batch_id)
+        return bool(s and s.get("stop_requested"))
 
 
 def mark_current(batch_id: int, filename: str) -> None:
@@ -168,6 +191,7 @@ def get(batch_id: int) -> dict[str, Any] | None:
             "ended_at": s["ended_at"],
             "elapsed_s": round((s["ended_at"] or now) - s["started_at"], 1),
             "error": s["error"],
+            "stop_requested": bool(s.get("stop_requested")),
             "usage": dict(s["usage"]),
             "recent": list(s["recent"]),
             "log_tail": list(s["log_tail"])[-40:],

@@ -218,6 +218,18 @@ def batch_status(batch_id: int):
     return jsonify(state)
 
 
+@bp.route("/batch/<int:batch_id>/stop", methods=["POST"])
+def batch_stop(batch_id: int):
+    """Demande l'arret propre du batch. Le runner termine l'image en cours puis sort."""
+    ok = image_batch_state.request_stop(batch_id)
+    if not ok:
+        return jsonify({
+            "ok": False,
+            "error": "Batch introuvable ou deja termine.",
+        }), 400
+    return jsonify({"ok": True, "batch_id": batch_id})
+
+
 def _serialize(row: dict) -> dict:
     """Convertit les types non sérialisables pour le JSON (datetime, etc.)."""
     out = {}
