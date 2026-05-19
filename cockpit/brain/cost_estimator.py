@@ -15,15 +15,24 @@ from brain.llm_client import estimate_cost, PRICING
 
 # Empreintes tokens approximatives. À recalibrer ponctuellement si les prompts
 # système grossissent (typiquement +5k par injection de gros bloc).
+# Mesurées sur prompts.py au 2026-05-19 (post-expansion : modes blog_pivot,
+# image-thread rule, is_quote_trigger/is_clivant, T1 forms étendues).
+# Pour copywriting/extension : inclut le system block COMPLET (56k mesurés)
+# + le playbook+persona injectés en user-blocks cachables (~5-6k typiques).
+# Les valeurs sont alignées avec les `cache write=...` observés dans les runs.
 SYS_TOKENS = {
-    "copywriting": 50000,   # role + brief + avatars + techniques + blog catalog
-    "extension":   50000,   # même structure
-    "analyze":      3000,   # role + brief
-    "persona":     26000,   # role + brief + avatars
-    "vision":      30000,   # role + brief + avatars + règles annotation
+    "copywriting": 62000,   # system (~56k) + playbook+persona cached (~6k)
+    "extension":   62000,   # même structure
+    "analyze":      1500,   # role + brief court
+    "persona":     27000,   # role + brief + avatars full
+    "vision":      25000,   # role + brief produit + avatars + règles annotation
 }
 USER_FRESH_PER_CHUNK = 1500   # chunk de 20 tweets + instruction variable
 OUTPUT_PER_CHUNK     = 4500   # JSON output (20 tweets × ~225 tokens chacun)
+# Note thinking models : pour Gemini Pro/Pro-Preview, candidates_token_count
+# inclut le raisonnement → l'output billing réel peut monter à 6-8k pour 20
+# tweets. La constante reste sur la moyenne observée (~3500 sur runs réels) ;
+# elle reste prudente sur le haut. Recalibrer si l'écart dérive.
 
 # Empreintes par image vision : on injecte une image (~1600 tokens encodée par
 # Anthropic en moyenne pour les formats web normaux 800×800-ish) + instruction
