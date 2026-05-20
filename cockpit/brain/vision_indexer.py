@@ -30,6 +30,7 @@ _BATCH_CAPS_BY_MODEL: dict[str, int] = {
     "gemini-3.1-flash-lite":  50000,
     # Gemini Flash full : 10 000 RPD, large mais pas illimite.
     "gemini-3-flash":          5000,
+    "gemini-3.5-flash":        5000,
     # Gemini Pro / Pro Preview : 250 RPD, cap conservateur.
     "gemini-3.1-pro-preview":   200,
     "gemini-3.1-pro":           200,

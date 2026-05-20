@@ -591,6 +591,7 @@ PRICING = {
     "gemini-3.1-pro-preview": {"input": 2.0,  "output": 12.0, "cache_read": 0.5,  "cache_write": 2.0},
     "gemini-3-pro":           {"input": 2.0,  "output": 12.0, "cache_read": 0.5,  "cache_write": 2.0},
     "gemini-3.1-pro":         {"input": 2.0,  "output": 12.0, "cache_read": 0.5,  "cache_write": 2.0},
+    "gemini-3.5-flash":       {"input": 1.5,  "output": 9.0,  "cache_read": 0.15,  "cache_write": 1.5},
     "gemini-3-flash":         {"input": 0.5,  "output": 3.0,  "cache_read": 0.125, "cache_write": 0.5},
     "gemini-3.1-flash-lite":  {"input": 0.10, "output": 0.40, "cache_read": 0.025, "cache_write": 0.10},
 }

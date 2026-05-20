@@ -53,6 +53,7 @@ _RETRY_MARGIN_BY_MODEL: dict[str, float] = {
     "gemini-3.1-pro-preview": 0.20,
     "gemini-3-pro":           0.20,
     "gemini-3.1-pro":         0.20,
+    "gemini-3.5-flash":       0.20,
 }
 
 
