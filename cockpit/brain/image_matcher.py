@@ -159,7 +159,6 @@ def score_candidate(
     brief_tokens: set[str],
     avatar_primary: int | None,
     image: dict[str, Any],
-    used_image_ids: set[int],
 ) -> float:
     """Score une image candidate pour un tweet donne.
 
@@ -168,6 +167,9 @@ def score_candidate(
     filtre d'eligibilite (high/medium ok, low/off_brand exclus) — il
     n'apporte plus de bonus de score : une image MEDIUM dont la description
     matche parfaitement bat une HIGH generique.
+
+    NB : la deduplication run-global (une image = un seul tweet par run) est
+    gere en amont par exclusion stricte du pool dans match_images_for_run.
     """
     score = 0.0
 
@@ -207,10 +209,6 @@ def score_candidate(
     # Tres leger nudge en faveur de HIGH a egalite parfaite (tiebreaker uniquement)
     if fit == "high":
         score += 0.3
-
-    # Penalite si deja utilisee dans ce run (eviter la repetition)
-    if image.get("id") in used_image_ids:
-        score -= 4.0
 
     return score
 
@@ -303,10 +301,14 @@ def match_images_for_run(run_id: int) -> dict[str, Any]:
         brief_tokens = _tokenize(brief)
         avatar_primary = tw.get("avatar_id_primary")
 
-        # Scorer toutes les candidates
+        # Hard exclude : une image deja attribuee dans ce run n'est plus
+        # candidate, peu importe le score qu'elle aurait obtenu. Une image
+        # = un seul tweet par run.
         scored = []
         for img in pool:
-            s = score_candidate(brief_tokens, avatar_primary, img, used_image_ids)
+            if img.get("id") in used_image_ids:
+                continue
+            s = score_candidate(brief_tokens, avatar_primary, img)
             if s > 0:
                 scored.append((s, img))
 
