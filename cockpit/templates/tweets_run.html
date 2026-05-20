@@ -1178,6 +1178,7 @@
       font-size: 13.5px;
       line-height: 1.55;
       color: var(--ink);
+      white-space: pre-wrap;
     }
     .diff-final .diff-text {
       color: var(--burgundy);
@@ -1205,7 +1206,18 @@
       cell.classList.remove('warn', 'err');
       if (count > 280) cell.classList.add('err');
       else if (count > 270) cell.classList.add('warn');
+      autoGrow(textarea);
     }
+
+    function autoGrow(textarea) {
+      if (textarea.dataset.field !== 'content') return;
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('textarea.cell[data-field="content"]').forEach(autoGrow);
+    });
 
     async function saveTweet(input) {
       const tr = input.closest('tr');
