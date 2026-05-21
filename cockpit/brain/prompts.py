@@ -141,12 +141,50 @@ def _spec_profile_photo() -> str:
         "dans Midjourney / DALL-E / Stable Diffusion / ComfyUI. L'anglais est plus précis "
         "que le français pour ces générateurs (vocabulaire photographique standardisé, "
         "moins d'ambiguïtés).\n\n"
+        "### 🔑 PRINCIPE DIRECTEUR ABSOLU — quick everyday snapshot\n\n"
+        "**Peu importe la persona, peu importe l'avatar, peu importe le mood** : cette photo "
+        "doit TOUJOURS donner l'impression d'avoir été **prise rapidement, dans la vie "
+        "quotidienne, sans préparation, comme un selfie cru ou un cliché volé par un·e "
+        "ami·e en passant**. Jamais l'impression que la photo a été prise « au sérieux ». "
+        "Jamais l'impression qu'on a appelé un photographe, qu'on a réfléchi au cadrage, "
+        "qu'on a pris une seconde pour vérifier qu'on était bien.\n\n"
+        "C'est le critère n°1, devant tous les autres axes ci-dessous. Si tu décris une "
+        "scène magnifique avec une lumière parfaite et une composition équilibrée, c'est "
+        "raté — ça ressemblera à de la photo d'auteur, pas à une photo de profil Twitter "
+        "qu'on a balancée en deux secondes.\n\n"
+        "**Ce que doit transpirer la photo** :\n"
+        "- L'impression d'avoir été prise **en 2 secondes**, sans réfléchir.\n"
+        "- L'impression que la persona **ne savait pas vraiment** qu'on la photographiait, "
+        "ou qu'elle s'en fichait — pas qu'elle a posé pour la photo.\n"
+        "- L'impression d'avoir été **balancée sur le téléphone** au milieu d'autres photos, "
+        "pas sélectionnée parmi 50 prises de vue.\n"
+        "- L'impression qu'**on aurait pu refaire la photo en mieux**, mais qu'on a gardé "
+        "celle-ci parce qu'elle a un truc, justement parce qu'elle n'est pas parfaite.\n\n"
+        "Cette directive s'applique à TOUS les avatars. Une persona lucide et tranchante = "
+        "snapshot casual. Une persona hyper-émotionnelle et extravagante = snapshot casual. "
+        "Une persona idéaliste et romantique = snapshot casual. Une persona discrète et "
+        "professionnelle = snapshot casual. Ce qui change selon l'avatar, c'est **la scène** "
+        "(loisir, activité, contexte), **pas le degré de polish photographique**.\n\n"
+        "### Comment matérialiser cette directive dans le prompt\n\n"
+        "- **Cadrage** : légèrement raté, sujet pas parfaitement centré, peut être coupé au "
+        "ras du front, ou décentré à droite ou à gauche. **Pas de règle des tiers parfaite**, "
+        "pas de composition équilibrée d'auteur.\n"
+        "- **Moment capté** : mi-mouvement, mi-cligne, mi-phrase, mi-rire, tête légèrement "
+        "tournée. **Pas figée pour la pose**.\n"
+        "- **Focus et netteté** : peut être pas piqué, peut être légèrement flou, peut "
+        "même être focusé sur le mauvais élément (le livre net, le visage mou).\n"
+        "- **Mouvement** : léger flou de mouvement sur les cheveux, sur une main qui bouge, "
+        "sur un objet qu'elle tient. Une photo trop figée trahit l'IA.\n"
+        "- **Appareil implicite** : **téléphone (iPhone moyen) en mode normal**, jamais "
+        "appareil photo pro, jamais objectif à focale fixe luxueuse. Si tu spécifies un "
+        "appareil argentique, c'est un compact Olympus mju ou un appareil amateur jetable, "
+        "pas un Leica.\n"
+        "- **Post-traitement** : zéro retouche. Pas de filtre Instagram, pas de bokeh "
+        "artificiel, pas de cinematic look, pas de couleurs poussées. Brut.\n\n"
         "Le but : produire **l'archétype parfait** de cette personne, **capturée dans un "
-        "moment de vie réel** — pas un portrait posé, pas un shooting, pas un regard "
-        "caméra solennel. La photo doit ressembler à un instant volé par un·e ami·e, ou à "
-        "un selfie pris à 14h sans se préparer, pendant qu'elle faisait autre chose. "
-        "**C'est l'action et le contexte qui produisent l'incarnation**, pas la pose.\n\n"
-        "**Règle absolue n°1** : la photo doit montrer la persona **en train de faire "
+        "moment de vie réel**. C'est l'action et le contexte qui produisent l'incarnation, "
+        "pas la pose ni le polish photographique.\n\n"
+        "**Règle absolue n°2** : la photo doit montrer la persona **en train de faire "
         "quelque chose** ou **en plein moment vécu**. Jamais en train de poser pour un "
         "portrait. Le visage est secondaire — la scène qui l'entoure raconte autant qu'elle.\n\n"
         "**Cohérence absolue avec la backstory** : âge exact, lieu de vie, métier, parcours "
@@ -290,25 +328,29 @@ def _spec_profile_photo() -> str:
         "### Format JSON attendu (en anglais, prêt à coller)\n\n"
         "Le champ `profile_photo_prompt` doit être une **string contenant un objet JSON** "
         "(donc échappé : tu produis une string avec des guillemets internes en `\\\"`). "
-        "Le JSON doit être en anglais et contenir ces champs :\n\n"
+        "Le JSON doit être en anglais et contenir ces champs. **Chaque champ doit "
+        "incorporer la directive « casual quick snapshot » — pas un seul ne doit produire "
+        "un effet de photo prise au sérieux** :\n\n"
         "```json\n"
         "{\n"
-        '  \"scene\": \"<one English sentence describing what she is doing and where, derived from her backstory>\",\n'
-        '  \"subject_position\": \"<English description of body posture, hands, head tilt — suggesting she was there before the photo and will stay after>\",\n'
-        '  \"gaze\": \"<where her eyes are looking — by default NOT at the camera (on her book, phone, hands, window, distance, etc.)>\",\n'
-        '  \"physical_traits\": \"<English description: age + visible age markers, hair color/texture/length/state, skin tone + authentic details (freckles, mole, light redness), face shape, eyes, distinctive element (one max)>\",\n'
-        '  \"clothing\": \"<English: garment (specific fabric like linen/cashmere/worn cotton), exact color (e.g. faded navy, sand beige, dusty bordeaux), state (slightly wrinkled, well-worn, freshly put on), one optional accessory>\",\n'
-        '  \"framing\": \"<English: shot type (mid-shot, fragment, over-the-shoulder, plunging slight, mirror reflection), medium-distance focal length (35mm or 50mm equivalent), hands and object visible in frame>\",\n'
-        '  \"lighting\": \"<English: natural light only — source (side window, table lamp, café spotlights), direction, implicit time of day and season, slight imperfections like overexposed window or deep shadow>\",\n'
-        '  \"decor\": \"<English: 2 to 4 environmental anchors that tell HER specific world (Parisian Haussmann moldings, Nordic studio shelves, café moleskine bench, etc.) — derived from backstory>\",\n'
-        '  \"style\": \"<English: implicit camera (iPhone in normal mode, Fujifilm X100, 35mm film), minimal post-processing, voluntary imperfections (light grain, slight motion blur, not perfectly sharp focus)>\",\n'
-        '  \"negative_prompt\": \"<English list of things to avoid: no studio lighting, no posed portrait, no looking at camera, no headshot, no perfect symmetry, no smooth skin, no Instagram filter, no cinematic look, no AI-generated appearance, no LinkedIn pose, no model-like beauty>\",\n'
-        '  \"full_prompt\": \"<single English paragraph concatenating scene + subject_position + gaze + physical_traits + clothing + framing + lighting + decor + style, ready to paste directly into any image generator>\"\n'
+        '  \"scene\": \"<one English sentence: what she\'s casually doing and where, derived from her backstory. Mundane, not aesthetic. E.g. mid-laugh on a phone call to a friend, halfway through tying her shoelaces, scrolling through her phone on the couch, mid-bite of a croissant>\",\n'
+        '  \"subject_position\": \"<English: caught-in-action body posture — mid-movement, slightly hunched, head tilted, hand passing through hair, mid-step, NOT a deliberate pose. She looks like she didn\'t notice the photo>\",\n'
+        '  \"gaze\": \"<where her eyes are — by default NOT at the camera. Looking down at her phone, off to the side, mid-blink, eyes half-closed laughing, looking at the friend talking. If she looks at the camera, it\'s with annoyed/surprised reaction, not posed>\",\n'
+        '  \"physical_traits\": \"<English: age + visible age markers, hair color/texture/length/state INCLUDING messy details (hair out of place, falling in face, day-2 unwashed), skin tone + authentic imperfections (visible pores, slight redness, freckles, mole, slight under-eye darkness), face shape, eyes, one distinctive element max>\",\n'
+        '  \"clothing\": \"<English: what she\'s wearing for THIS casual moment — pyjama top, oversized old t-shirt, sweater she\'s had for years, hoodie. Not chosen for the photo. Specify fabric, exact muted color, worn-in state. One accessory max if any>\",\n'
+        '  \"framing\": \"<English: imperfect handheld smartphone framing — slightly off-center, head possibly cropped at the top, body partially out of frame. NOT rule of thirds, NOT golden ratio. Phone held casually at arm\'s length or by a friend in passing. 35mm equivalent for the natural phone look, NEVER 85mm portrait lens>\",\n'
+        '  \"lighting\": \"<English: whatever light is available in the moment, no setup. Could be unflattering (harsh overhead bulb in her kitchen, fluorescent café light, mixed temperatures from window + lamp, low evening light too dim). Imperfections welcome: overexposed window patch, deep shadows, color cast>\",\n'
+        '  \"decor\": \"<English: 2 to 4 environmental anchors that tell HER specific world (Parisian Haussmann moldings, messy desk, kitchen sink with dishes, train interior, café terrace, friend\'s couch). Background NOT staged or curated. May include mundane visible items (dirty mug, phone charger, magazine on the floor)>\",\n'
+        '  \"style\": \"<English: shot on iPhone in normal mode (NOT Portrait mode — that bokeh screams \'taken seriously\'), or quickly grabbed friend\'s phone, or disposable film camera. Zero post-processing, no filter, no curated color grading. Slight motion blur welcome. Slightly unfocused welcome. Looks like one of 200 photos in her camera roll, not a chosen shot>\",\n'
+        '  \"negative_prompt\": \"<English: no studio lighting, no posed portrait, no looking at camera deliberately, no headshot, no professional photo, no Portrait mode bokeh, no perfect framing, no rule of thirds, no perfect symmetry, no smooth skin, no Instagram filter, no cinematic look, no teal and orange grading, no AI-generated appearance, no LinkedIn pose, no model-like beauty, no carefully curated aesthetic, no \'taken seriously\' feel>\",\n'
+        '  \"full_prompt\": \"<single English paragraph concatenating all above into a paste-ready prompt. MUST open with a phrase that establishes the casual snapshot vibe (e.g. \'Quick everyday smartphone snapshot of...\' / \'Candid amateur photo of...\' / \'Casual phone photo of...\') to anchor the generator from the first words>\"\n'
         "}\n"
         "```\n\n"
-        "**Le champ `full_prompt`** est la version concaténée prête à coller (un seul "
-        "paragraphe en anglais). Les autres champs servent de référence et d'édition fine "
-        "si l'utilisateur veut ajuster un axe particulier.\n\n"
+        "**Le champ `full_prompt`** est la version concaténée prête à coller. **Il doit "
+        "obligatoirement OUVRIR par une formule explicite de type « Quick everyday smartphone "
+        "snapshot of... » ou « Candid amateur photo of... » ou « Casual phone photo of... »** "
+        "pour caler le générateur d'image dès les premiers mots sur le registre snapshot, "
+        "pas portrait.\n\n"
     )
 
 
@@ -446,11 +488,13 @@ def _spec_banner() -> str:
         '  \"style\": \"<English: same medium / camera / grain / post-processing as profile photo. If profile is shot on iPhone, banner is too. If profile is 35mm film, banner is too. No stylistic break>\",\n'
         '  \"emotional_charge\": \"<English: the same mood as the profile photo prolonged — quiet tenderness, soft melancholy, lucid stillness, etc.>\",\n'
         '  \"negative_prompt\": \"<English: no visible character (persona is already in the avatar), no decorative cliché, no cinematic 8k, no hyperrealistic, no separated/unrelated decor, no stylistic break from the profile photo, no text, no typography, no inspirational quote, no logo>\",\n'
-        '  \"full_prompt\": \"<single English paragraph concatenating all above into a paste-ready Twitter/X header prompt, with explicit ratio 3:1 and dimensions 1500x500 mentioned at the end>\"\n'
+        '  \"full_prompt\": \"<single English paragraph concatenating all above. MUST open with a phrase that establishes the same casual snapshot vibe as the profile photo (e.g. \'Casual phone snapshot — wider view of the same scene as the profile photo...\' / \'Candid amateur shot of...\' / \'Quick everyday photo of...\'). MUST mention explicit ratio 3:1 and dimensions 1500x500 at the end>\"\n'
         "}\n"
         "```\n\n"
-        "**Le champ `full_prompt`** est la version concaténée prête à coller dans un "
-        "générateur d'image. Les autres champs servent de référence et d'édition fine.\n\n"
+        "**Le champ `full_prompt`** est la version concaténée prête à coller. **Il doit "
+        "obligatoirement OUVRIR par une formule explicite « Casual phone snapshot — » ou "
+        "équivalent**, qui inscrit la bannière dans le même registre casual que la photo de "
+        "profil. Pas une seconde de polish supplémentaire entre les deux images.\n\n"
     )
 
 
