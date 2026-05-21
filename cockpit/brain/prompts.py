@@ -331,6 +331,20 @@ def _spec_profile_photo() -> str:
         "piquée, grain ISO élevé en intérieur, sur-exposition d'une fenêtre derrière, "
         "reflet sur l'objectif. **Ce sont ces imperfections qui distinguent une vraie "
         "photo d'une image générée par l'IA.**\n\n"
+        "### ⚠️ AUCUN TEXTE VISIBLE DANS LA PHOTO\n"
+        "**Règle stricte** : la photo générée ne doit contenir **aucun texte écrit, "
+        "aucune typographie, aucun mot, aucune lettre, aucune inscription, aucun logo, "
+        "aucune signalétique**. Pas de livre dont le titre se lit, pas d'affiche au mur, "
+        "pas de mug avec une inscription, pas de t-shirt à message, pas de néon de café "
+        "avec une enseigne lisible, pas de poster, pas de magazine ouvert avec texte "
+        "visible, pas de notes manuscrites lisibles. **Les générateurs d'images "
+        "écrivent presque toujours du faux texte qui trahit l'IA** — c'est l'un des "
+        "signaux les plus reconnaissables. Mentionne explicitement « no visible text, no "
+        "writing, no typography, no signage, no logos, no readable book titles, no "
+        "captions, no inscriptions » dans le prompt et dans le negative_prompt.\n"
+        "Si la scène contient naturellement des éléments qui auraient du texte (livre, "
+        "magazine, étiquette), demande au générateur de les rendre **flous, hors focus, "
+        "ou tournés vers la persona** pour qu'aucun texte ne soit lisible.\n\n"
         "### Interdits absolus dans le prompt photo\n"
         "- ❌ « Portrait », « headshot », « professional photo », « studio shot ». Tu "
         "écris une SCÈNE, pas un portrait. Si tu utilises ces mots, le générateur produit "
@@ -375,7 +389,7 @@ def _spec_profile_photo() -> str:
         '  \"lighting\": \"<English: whatever light is available in the moment, no setup. Could be unflattering (harsh overhead bulb in her kitchen, fluorescent café light, mixed temperatures from window + lamp, low evening light too dim). Imperfections welcome: overexposed window patch, deep shadows, color cast>\",\n'
         '  \"decor\": \"<English: 2 to 4 environmental anchors that tell HER specific world (Parisian Haussmann moldings, messy desk, kitchen sink with dishes, train interior, café terrace, friend\'s couch). Background NOT staged or curated. May include mundane visible items (dirty mug, phone charger, magazine on the floor)>\",\n'
         '  \"style\": \"<English: shot on iPhone in normal mode (NOT Portrait mode — that bokeh screams \'taken seriously\'), or quickly grabbed friend\'s phone, or disposable film camera. Zero post-processing, no filter, no curated color grading. Slight motion blur welcome. Slightly unfocused welcome. Looks like one of 200 photos in her camera roll, not a chosen shot>\",\n'
-        '  \"negative_prompt\": \"<English: no studio lighting, no posed portrait, no looking at camera deliberately (unless the scene justifies a brief glance), no headshot, no professional photo, no Portrait mode bokeh, no perfect framing, no rule of thirds, no smooth airbrushed skin, no Instagram filter, no cinematic look, no teal and orange grading, no AI-generated appearance, no LinkedIn pose, no stunning instagram model aesthetic, no brand ambassador look, no carefully curated influencer feed vibe, no \'taken seriously\' feel. KEEP: natural beauty, attractive features, healthy good-looking person caught in a casual everyday moment>\",\n'
+        '  \"negative_prompt\": \"<English: NO VISIBLE TEXT of any kind (no writing, no typography, no readable letters, no book titles, no signage, no logos, no captions, no inscriptions, no t-shirt slogans, no mug text, no neon signs with readable words, no posters with text, no notes), no studio lighting, no posed portrait, no looking at camera deliberately (unless the scene justifies a brief glance), no headshot, no professional photo, no Portrait mode bokeh, no perfect framing, no rule of thirds, no smooth airbrushed skin, no Instagram filter, no cinematic look, no teal and orange grading, no AI-generated appearance, no LinkedIn pose, no stunning instagram model aesthetic, no brand ambassador look, no carefully curated influencer feed vibe, no \'taken seriously\' feel. KEEP: natural beauty, attractive features, healthy good-looking person caught in a casual everyday moment>\",\n'
         '  \"full_prompt\": \"<single English paragraph concatenating all above into a paste-ready prompt. MUST open with a phrase that establishes BOTH the casual snapshot vibe AND the natural beauty of the subject — e.g. \'Quick everyday smartphone snapshot of a naturally beautiful 32-year-old woman caught reading...\' / \'Candid amateur photo of a striking handsome man, mid-laugh on the phone...\' / \'Casual phone photo of an attractive young woman, fresh-faced, in her kitchen...\'. The \'naturally beautiful\' / \'striking\' / \'attractive\' qualifier should appear right after the medium descriptor, before the action>\"\n'
         "}\n"
         "```\n\n"
@@ -517,10 +531,20 @@ def _spec_banner() -> str:
         "pas un coté amateur + un côté production publicitaire).\n"
         "Sans copier la scène, on doit pouvoir dire en regardant les deux côte à côte : "
         "« oui, c'est la même personne qui a choisi ça pour son profil ».\n\n"
-        "### 8. TEXTE SUR L'IMAGE\n"
-        "**Par défaut : aucun texte**. Les générateurs ratent presque toujours la typo et "
-        "c'est un signal IA reconnaissable. Mentionne explicitement « pas de texte, pas "
-        "de typographie » dans le prompt.\n\n"
+        "### ⚠️ AUCUN TEXTE VISIBLE DANS LA BANNIÈRE\n"
+        "**Règle stricte absolue** : la bannière ne doit contenir **aucun texte écrit, "
+        "aucune typographie, aucun mot, aucune lettre, aucune inscription, aucun logo, "
+        "aucune signalétique**. Les générateurs d'images ratent presque toujours la typo "
+        "(lettres déformées, mots inventés, polices bancales) — c'est l'un des signaux IA "
+        "les plus reconnaissables. **Pas de citation inspirante, pas de slogan, pas "
+        "d'enseigne lisible, pas de titre de livre, pas de couverture de magazine avec "
+        "texte, pas de panneau urbain lisible, pas de néon avec mots, pas de graffiti "
+        "lisible.** Si la bannière inclut un objet qui aurait normalement du texte (livre, "
+        "magazine, panneau), demande qu'il soit flou, vu de dos, ou de côté pour que rien "
+        "ne soit lisible.\n"
+        "Mentionne explicitement dans le prompt et le negative_prompt : « no visible text, "
+        "no writing, no typography, no readable words, no signage, no logos, no captions, "
+        "no quotes, no slogans, no inscriptions ».\n\n"
         "### Interdits absolus dans le prompt bannière\n"
         "- ❌ Image décorative générique sans lien avec qui est la persona (paysage de "
         "rêve interchangeable, abstrait pur sans intention, scène imaginaire).\n"
@@ -554,7 +578,7 @@ def _spec_banner() -> str:
         '  \"lighting\": \"<English: lighting quality coherent with the medium and mood — natural daylight, golden hour, blue hour, indoor lamp warmth, overcast diffuse, etc.>\",\n'
         '  \"emotional_charge\": \"<English: the precise mood the banner should convey in a half-second — coherent with the persona\'s voice_signature posture (e.g. \'quiet melancholy of a sunday afternoon\', \'expressive vivid joy contained\', \'lucid stillness\', \'soft romantic reverie\')>\",\n'
         '  \"identity_coherence_with_profile\": \"<English: one sentence explaining how this banner stays coherent with the profile photo at the IDENTITY level (same temperament, compatible palette, no stylistic break) — but explicitly NOT a continuation of the scene>\",\n'
-        '  \"negative_prompt\": \"<English: no visible person (persona is in the avatar), no decorative cliché, no cinematic 8k, no hyperrealistic AI look, no generic inspirational scene, no temperament break with profile photo, no text, no typography, no inspirational quote, no logo, no brand-like banner>\",\n'
+        '  \"negative_prompt\": \"<English: NO VISIBLE TEXT of any kind (no writing, no typography, no readable letters, no book titles, no signage, no logos, no captions, no quotes, no slogans, no inscriptions, no readable street signs, no neon words, no magazine covers with text), no visible person (persona is in the avatar), no decorative cliché, no cinematic 8k, no hyperrealistic AI look, no generic inspirational scene, no temperament break with profile photo, no brand-like banner>\",\n'
         '  \"full_prompt\": \"<single English paragraph concatenating all above into a paste-ready Twitter/X header prompt. MUST open with a phrase that frames the banner as a deliberate personal choice (e.g. \'A Twitter/X header banner that a 32-year-old literary editor would choose for herself, showing...\' / \'Banner image deliberately picked by an extravagant 27-year-old content creator to express her world, featuring...\'). MUST mention explicit ratio 3:1 and dimensions 1500x500 at the end>\"\n'
         "}\n"
         "```\n\n"

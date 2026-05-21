@@ -287,17 +287,76 @@
     </div>
     {% endif %}
     {% if persona.profile_photo_prompt %}
-    <details>
-      <summary class="field-label" style="cursor:pointer;">Prompt photo de profil (cliquer pour voir)</summary>
-      <p class="mono" style="font-size:12px; margin-top:8px; padding:12px; background:var(--cream); border-radius:8px; line-height:1.5;">{{ persona.profile_photo_prompt }}</p>
-    </details>
+    <div class="visual-prompt-block">
+      <details>
+        <summary class="field-label" style="cursor:pointer;">Prompt photo de profil (cliquer pour voir)</summary>
+        <p class="mono" style="font-size:12px; margin-top:8px; padding:12px; background:var(--cream); border-radius:8px; line-height:1.5;">{{ persona.profile_photo_prompt }}</p>
+      </details>
+      <form method="post" action="{{ url_for('personas.regen_visual_prompt', persona_id=persona.id, kind='profile_photo') }}" class="visual-regen-form">
+        <button type="submit" class="btn-regen-visual" title="Régénérer le prompt photo de profil (sans toucher au reste de la persona)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 21v-5h5"/></svg>
+          Régénérer
+        </button>
+      </form>
+    </div>
     {% endif %}
     {% if persona.banner_prompt %}
-    <details>
-      <summary class="field-label" style="cursor:pointer;">Prompt bannière Twitter — 1500×500 (cliquer pour voir)</summary>
-      <p class="mono" style="font-size:12px; margin-top:8px; padding:12px; background:var(--cream); border-radius:8px; line-height:1.5;">{{ persona.banner_prompt }}</p>
-    </details>
+    <div class="visual-prompt-block" style="margin-top:8px;">
+      <details>
+        <summary class="field-label" style="cursor:pointer;">Prompt bannière Twitter — 1500×500 (cliquer pour voir)</summary>
+        <p class="mono" style="font-size:12px; margin-top:8px; padding:12px; background:var(--cream); border-radius:8px; line-height:1.5;">{{ persona.banner_prompt }}</p>
+      </details>
+      <form method="post" action="{{ url_for('personas.regen_visual_prompt', persona_id=persona.id, kind='banner') }}" class="visual-regen-form">
+        <button type="submit" class="btn-regen-visual" title="Régénérer le prompt bannière (sans toucher au reste de la persona)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 21v-5h5"/></svg>
+          Régénérer
+        </button>
+      </form>
+    </div>
     {% endif %}
+
+    <style>
+      .visual-prompt-block {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      .visual-prompt-block > details { flex: 1; min-width: 0; }
+      .visual-regen-form { margin: 0; flex-shrink: 0; }
+      .btn-regen-visual {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        background: transparent;
+        color: var(--burgundy, #6a0f1a);
+        border: 1px solid rgba(106, 15, 26, 0.3);
+        border-radius: 5px;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.15s ease;
+      }
+      .btn-regen-visual:hover {
+        background: rgba(106, 15, 26, 0.06);
+        border-color: var(--burgundy, #6a0f1a);
+      }
+      .btn-regen-visual:disabled { opacity: 0.5; cursor: wait; }
+    </style>
+
+    <script>
+    (function() {
+      document.querySelectorAll('.visual-regen-form').forEach(function(form) {
+        form.addEventListener('submit', function() {
+          const btn = form.querySelector('button[type="submit"]');
+          if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span style="opacity:0.7;">Régénération en cours… (~10-30s)</span>';
+          }
+        });
+      });
+    })();
+    </script>
   </div>
 </section>
 

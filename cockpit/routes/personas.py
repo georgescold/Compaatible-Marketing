@@ -304,6 +304,47 @@ def new_save():
     return redirect(url_for("personas.detail", persona_id=persona_id))
 
 
+@bp.route("/<int:persona_id>/regen-visual/<kind>", methods=["POST"])
+def regen_visual_prompt(persona_id: int, kind: str):
+    """Régénère le prompt visuel (profile_photo ou banner) d'une persona existante.
+
+    Appelle persona_manual.regenerate_visual_prompt() avec le modèle des settings
+    (ou le modèle override fourni en POST), met à jour la DB, redirige vers la
+    page detail avec un flash de confirmation.
+    """
+    if kind not in persona_manual.VISUAL_KINDS:
+        flash(f"Type de visuel invalide : {kind}", "error")
+        return redirect(url_for("personas.detail", persona_id=persona_id))
+
+    persona = pipeline.get_persona(persona_id)
+    if not persona:
+        flash("Persona introuvable.", "error")
+        return redirect(url_for("personas.index"))
+
+    # Modèle : prend l'override du form, sinon le defaut Settings
+    model = (request.form.get("model") or "").strip()
+    if not model:
+        settings = db.get_settings()
+        model = settings.get("model_adaptation") or "claude-sonnet-4-6"
+
+    try:
+        result = persona_manual.regenerate_visual_prompt(
+            persona=dict(persona),
+            kind=kind,
+            model=model,
+        )
+        persona_manual.update_persona_visual(persona_id, kind, result["prompt"])
+    except Exception as e:
+        traceback.print_exc(file=sys.stdout)
+        flash(f"Erreur régénération {kind} : {type(e).__name__}: {e}", "error")
+        return redirect(url_for("personas.detail", persona_id=persona_id))
+
+    label = "Photo de profil" if kind == "profile_photo" else "Bannière"
+    cost = result.get("usage", {}).get("cost_usd_estimate", 0)
+    flash(f"{label} régénérée · ${cost:.4f}", "success")
+    return redirect(url_for("personas.detail", persona_id=persona_id))
+
+
 @bp.route("/<int:persona_id>/generate", methods=["POST"])
 def generate_for_persona(persona_id: int):
     """Lance un run de génération de tweets pour une persona (manuelle ou CSV-émergée).

@@ -306,6 +306,144 @@ def generate_preview(
     }
 
 
+VISUAL_KINDS = ("profile_photo", "banner")
+
+
+def regenerate_visual_prompt(persona: dict, kind: str, model: str) -> dict[str, Any]:
+    """Régénère UNIQUEMENT le prompt visuel demandé (photo_de_profil OU bannière)
+    pour une persona existante. Fait un appel LLM ciblé qui ne touche pas aux
+    autres champs (voix, backstory, etc.).
+
+    `persona` : dict complet de la persona (au moins first_name, age, gender,
+        avatar_id_primary, bio_twitter, backstory, voice_signature, vocabulary_yes,
+        vocabulary_no). L'avatar primaire est chargé depuis le catalogue.
+    `kind` : 'profile_photo' ou 'banner'.
+    `model` : id du modèle LLM.
+
+    Retourne : {prompt: str (JSON string en anglais, comme le format des specs),
+                usage: {input_tokens, cached_tokens, output_tokens, cost_usd_estimate}}
+    """
+    if kind not in VISUAL_KINDS:
+        raise ValueError(f"kind doit être 'profile_photo' ou 'banner', reçu : {kind!r}")
+
+    avatar_primary = avatars_catalog.get_avatar(persona.get("avatar_id_primary"))
+    if not avatar_primary:
+        raise ValueError(f"Avatar {persona.get('avatar_id_primary')} inconnu pour cette persona.")
+
+    # Bloc utilisateur : on transmet le contexte persona qui sert à dériver le visuel,
+    # puis on précise quelle section régénérer.
+    persona_block = {
+        "first_name": persona.get("first_name"),
+        "age": persona.get("age"),
+        "gender": persona.get("gender"),
+        "bio_twitter": persona.get("bio_twitter"),
+        "backstory": persona.get("backstory"),
+        "voice_signature": persona.get("voice_signature"),
+        "vocabulary_yes": persona.get("vocabulary_yes") or [],
+        "vocabulary_no": persona.get("vocabulary_no") or [],
+        "avatar_id_primary": persona.get("avatar_id_primary"),
+        "avatar_id_secondary": persona.get("avatar_id_secondary"),
+        # Le prompt actuel sert au LLM pour produire QUELQUE CHOSE DE DIFFÉRENT
+        # (anti-répétition implicite — on lui montre le précédent).
+        "current_prompt_to_replace": (
+            persona.get("profile_photo_prompt") if kind == "profile_photo"
+            else persona.get("banner_prompt")
+        ),
+    }
+
+    user_message = (
+        f"## CONTEXTE PERSONA EXISTANTE\n\n"
+        f"```json\n{json.dumps(persona_block, indent=2, ensure_ascii=False)}\n```\n\n"
+        f"## FICHE COMPLÈTE DE L'AVATAR PRIMAIRE\n\n"
+        f"{avatar_primary['full_block']}\n\n"
+        f"## MISSION\n\n"
+        + (
+            "Génère UN NOUVEAU `profile_photo_prompt` pour cette persona, en respectant "
+            "intégralement la SECTION DÉDIÉE LE CHAMP `profile_photo_prompt` du prompt "
+            "système. **Ne touche à aucun autre champ** de la persona. **Différencie-toi "
+            "du `current_prompt_to_replace`** ci-dessus : varie la scène, l'activité, "
+            "l'éclairage, l'angle — produis quelque chose de différent qui reste fidèle à "
+            "la persona. Retourne UNIQUEMENT le JSON spécifié ci-dessous (rien avant, "
+            "rien après).\n\n"
+            "## FORMAT DE SORTIE\n\n"
+            "```json\n"
+            "{\n"
+            '  \"profile_photo_prompt\": \"<string contenant un objet JSON encodé en anglais '
+            'respectant le format de la SECTION DÉDIÉE profile_photo_prompt (champs : scene, '
+            'subject_position, gaze, physical_traits, clothing, framing, lighting, decor, '
+            'style, negative_prompt, full_prompt). Le full_prompt doit ouvrir par une '
+            'formule snapshot casual + beauté naturelle (cf. spec).>\"\n'
+            "}\n"
+            "```\n"
+            if kind == "profile_photo" else
+            "Génère UN NOUVEAU `banner_prompt` pour cette persona, en respectant "
+            "intégralement la SECTION DÉDIÉE LE CHAMP `banner_prompt` du prompt système "
+            "(bannière = choix personnel délibéré de la persona, reflet de ses centres "
+            "d'intérêt / valeurs / esthétique). **Ne touche à aucun autre champ** de la "
+            "persona. **Différencie-toi du `current_prompt_to_replace`** ci-dessus : "
+            "propose un autre angle, un autre sujet, une autre composition. Retourne "
+            "UNIQUEMENT le JSON spécifié ci-dessous (rien avant, rien après).\n\n"
+            "## FORMAT DE SORTIE\n\n"
+            "```json\n"
+            "{\n"
+            '  \"banner_prompt\": \"<string contenant un objet JSON encodé en anglais '
+            'respectant le format de la SECTION DÉDIÉE banner_prompt (champs : '
+            'persona_expression, subject, medium, palette, composition, lighting, '
+            'emotional_charge, identity_coherence_with_profile, negative_prompt, '
+            'full_prompt). Le full_prompt doit ouvrir par une formule du type \\\"A '
+            'Twitter/X header banner that [persona descriptor] would choose for herself, '
+            'showing...\\\" et inclure ratio 3:1 et 1500x500.>\"\n'
+            "}\n"
+            "```\n"
+        )
+    )
+
+    result = llm_client.call_messages(
+        model=model,
+        system_blocks=prompts.build_system_for_manual_persona(),
+        messages=[{"role": "user", "content": user_message}],
+        max_tokens=4096,
+        temperature=0.95,
+    )
+
+    try:
+        parsed = parse_json_response(result["text"])
+    except (json.JSONDecodeError, ValueError) as e:
+        from brain.source_analyzer import _retry_json_repair
+        repair = _retry_json_repair(
+            model=model,
+            system_blocks=prompts.build_system_for_manual_persona(),
+            original_user_message=user_message,
+            broken_response=result["text"],
+            error=e,
+        )
+        parsed = parse_json_response(repair["text"])
+        for k in result["usage"]:
+            if k in repair["usage"] and isinstance(result["usage"][k], (int, float)):
+                result["usage"][k] += repair["usage"][k]
+
+    field_name = "profile_photo_prompt" if kind == "profile_photo" else "banner_prompt"
+    new_prompt = (parsed.get(field_name) or "").strip()
+    if not new_prompt:
+        raise RuntimeError(f"Le LLM n'a pas renvoyé de {field_name} exploitable.")
+
+    return {"prompt": new_prompt, "usage": result["usage"]}
+
+
+def update_persona_visual(persona_id: int, kind: str, new_prompt: str) -> None:
+    """Met à jour UNIQUEMENT le prompt visuel (profile_photo_prompt OU banner_prompt)
+    de la persona en DB. Ne touche pas aux autres champs.
+    """
+    if kind not in VISUAL_KINDS:
+        raise ValueError(f"kind doit être 'profile_photo' ou 'banner', reçu : {kind!r}")
+    field = "profile_photo_prompt" if kind == "profile_photo" else "banner_prompt"
+    with db.cursor() as cur:
+        cur.execute(
+            f"UPDATE mkt_personas_emerged SET {field} = %s WHERE id = %s",
+            (new_prompt, persona_id),
+        )
+
+
 def save_persona(persona: dict) -> int:
     """Insert la persona en DB. Retourne l'id.
 
