@@ -145,6 +145,8 @@ def new():
         models=Config.AVAILABLE_MODELS,
         default_model=default_model,
         cost_by_model=cost_by_model,
+        emotional_levels=persona_manual.EMOTIONAL_INTENSITY_LEVELS,
+        emotional_default=persona_manual.EMOTIONAL_INTENSITY_DEFAULT,
     )
 
 
@@ -169,6 +171,9 @@ def new_generate():
     first_name_hint = (request.form.get("first_name_hint") or "").strip() or None
     notes = (request.form.get("notes") or "").strip() or None
     model = (request.form.get("model") or "").strip()
+    emotional_intensity = (
+        request.form.get("emotional_intensity") or persona_manual.EMOTIONAL_INTENSITY_DEFAULT
+    ).strip()
 
     # Validation
     errors = []
@@ -199,6 +204,7 @@ def new_generate():
             first_name_hint=first_name_hint,
             notes=notes,
             model=model,
+            emotional_intensity=emotional_intensity,
         )
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
@@ -213,6 +219,7 @@ def new_generate():
         "first_name_hint": first_name_hint or "",
         "notes": notes or "",
         "model": model,
+        "emotional_intensity": emotional_intensity,
     }
     # Sérialisé en hidden field pour la sauvegarde (atomic transfer client → server).
     draft_payload = json.dumps({

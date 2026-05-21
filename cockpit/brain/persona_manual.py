@@ -26,6 +26,118 @@ def _existing_first_names() -> list[str]:
         return [r["first_name"] for r in cur.fetchall()]
 
 
+# Niveaux d'intensité émotionnelle proposés à l'utilisateur côté UI.
+# Le LLM reçoit une calibration dédiée selon le niveau choisi (cf. _emotional_intensity_spec).
+EMOTIONAL_INTENSITY_LEVELS = [
+    ("tres_emotionnel", "Très émotionnel·le"),
+    ("emotionnel",      "Émotionnel·le"),
+    ("peu_emotionnel",  "Peu émotionnel·le"),
+    ("rationnel",       "Rationnel·le"),
+]
+EMOTIONAL_INTENSITY_DEFAULT = "emotionnel"
+
+
+def _emotional_intensity_spec(level: str) -> str:
+    """Retourne la section de calibration émotionnelle à insérer dans le user_message.
+
+    Décrit le niveau choisi en PRINCIPES (pas de citations littérales d'emojis ou de
+    phrases, conformément à la doctrine anti-hardcoded). Le LLM doit matérialiser
+    ces principes dans le voice_signature ET dans les 3 preview tweets.
+    """
+    if level == "tres_emotionnel":
+        body = (
+            "**TRÈS ÉMOTIONNEL·LE — registre maximum, théâtralité assumée.**\n"
+            "- **Ponctuation démultipliée et propre à elle** : plusieurs points "
+            "d'interrogation à la suite pour marquer l'incompréhension, plusieurs "
+            "exclamations pour l'enthousiasme/l'indignation, mélanges atypiques type "
+            "interrogation+exclamation alternés, points de suspension allongés. "
+            "C'est une signature reconnaissable, pas un tic occasionnel.\n"
+            "- **Capitales fréquentes pour les pics d'intensité** : mots entiers ou "
+            "phrases courtes en majuscules pour marquer les émotions extrêmes.\n"
+            "- **Emojis abondants et en cluster** : pas un seul à la fin de tweet, "
+            "PLUSIEURS à la suite (3 à 5 emojis ou plus dans un même tweet), choisis "
+            "pour leur charge émotionnelle (joie débordante, dévastation, "
+            "dramatisation, surprise). Le emoji est une partie intégrante de la voix.\n"
+            "- **Formules d'amplification fréquentes** : adverbes intensifs, "
+            "hyperboles assumées, métaphores dramatiques (sans citer de formule "
+            "littérale spécifique — invente des patterns d'amplification cohérents "
+            "avec cette persona précise).\n"
+            "- **Théâtralité assumée** : prise à témoin du lecteur, exagération "
+            "consciente des chiffres et des situations, ton de quelqu'un qui RACONTE "
+            "à voix haute à ses amies. La voix EST grande forme, c'est sa fréquence.\n"
+            "- **Garde-fou** : malgré l'extravagance, la voix reste capable de "
+            "tranchant et de lucidité. L'émotion n'est pas creuse — elle est la "
+            "matière première d'observations vraies."
+        )
+    elif level == "emotionnel":
+        body = (
+            "**ÉMOTIONNEL·LE — chaleureuse, présente, modérée.**\n"
+            "- **Ponctuation expressive contrôlée** : double interrogation "
+            "occasionnelle quand l'émotion le justifie, exclamations modérées, "
+            "points de suspension présents mais standards (trois points classiques). "
+            "Pas de démultiplication systématique.\n"
+            "- **Capitales occasionnelles** : emphase ponctuelle sur un mot ou deux, "
+            "pas en série.\n"
+            "- **Emojis présents avec intention** : 1 ou 2 emojis quand utilisés, "
+            "placés en fin de tweet ou en bout de phrase. Pas en cluster.\n"
+            "- **Émotion incarnée mais maîtrisée** : la chaleur se ressent dans le "
+            "choix des mots, pas dans une accumulation de marqueurs visuels.\n"
+            "- **Voix** : sensible et engagée, sans hyperbole."
+        )
+    elif level == "peu_emotionnel":
+        body = (
+            "**PEU ÉMOTIONNEL·LE — retenue, contrôle, pudeur.**\n"
+            "- **Ponctuation classique et sobre** : point final standard, virgules "
+            "canoniques, jamais de répétitions de signes. Pas de double point "
+            "d'interrogation.\n"
+            "- **Capitales très rares** : uniquement pour vrai pic d'emphase, et "
+            "même alors c'est une exception.\n"
+            "- **Emojis rares ou absents** : si présents, exceptionnels (un seul, "
+            "sobre, en bout de tweet, et pas dans la majorité des tweets).\n"
+            "- **Émotion exprimée par le CONTENU, pas par la forme** : la voix "
+            "laisse l'émotion émerger par ce qu'elle dit, jamais par comment elle "
+            "le décore.\n"
+            "- **Phrases posées et contrôlées** : la voix donne l'impression de "
+            "quelqu'un qui pèse ses mots, qui dit moins pour dire mieux.\n"
+            "- **Voix** : retenue, élégance, pudeur — l'émotion se devine."
+        )
+    elif level == "rationnel":
+        body = (
+            "**RATIONNEL·LE — analytique, mesurée, froide.**\n"
+            "- **Ponctuation strictement classique** : zéro répétition de signe, "
+            "zéro point de suspension allongé, ponctuation grammaticalement correcte "
+            "et neutre.\n"
+            "- **Aucune capitale d'emphase** : la voix ne crie jamais visuellement.\n"
+            "- **Zéro emoji** (ou un seul, exceptionnel, dans très peu de tweets — "
+            "et même alors c'est presque une anomalie).\n"
+            "- **Langage analytique et démonstratif** : observations rigoureuses, "
+            "raisonnements posés, distance face au sujet.\n"
+            "- **Émotion uniquement implicite** : jamais affichée, jamais nommée "
+            "directement. Si la persona ressent quelque chose, ça transparaît "
+            "uniquement par la précision de l'observation.\n"
+            "- **Voix** : lucidité froide, registre proche de l'essai court — la "
+            "persona pourrait écrire dans une revue intellectuelle sans changer de "
+            "ton."
+        )
+    else:
+        # Fallback : émotionnel modéré
+        body = _emotional_intensity_spec("emotionnel")[len("## CALIBRATION ÉMOTIONNELLE OBLIGATOIRE\n\n"):]
+
+    return (
+        "## CALIBRATION ÉMOTIONNELLE OBLIGATOIRE\n\n"
+        "L'utilisateur a choisi un niveau d'intensité émotionnelle précis pour cette "
+        "persona. Tu DOIS matérialiser ce niveau dans :\n"
+        "1. Le champ `voice_signature` (la description des patterns d'écriture).\n"
+        "2. Le champ `vocabulary_yes` (la palette lexicale cohérente avec ce niveau).\n"
+        "3. Les 3 preview tweets (isolated, thread, quote_trigger) — ils doivent "
+        "incarner ce niveau de façon évidente.\n\n"
+        f"{body}\n\n"
+        "**Ce niveau prime sur les défauts génériques** : même si l'avatar choisi est "
+        "habituellement écrit dans un registre différent, c'est ce niveau émotionnel "
+        "que tu appliques. C'est un choix éditorial explicite de l'utilisateur."
+    )
+
+
 def _build_user_message(
     gender: str,
     age: int,
@@ -33,6 +145,7 @@ def _build_user_message(
     avatar_secondary: dict | None,
     first_name_hint: str | None,
     notes: str | None,
+    emotional_intensity: str = EMOTIONAL_INTENSITY_DEFAULT,
 ) -> str:
     existing = _existing_first_names()
     existing_block = (
@@ -53,8 +166,16 @@ def _build_user_message(
         parts.append(f"- **Prénom souhaité** : {first_name_hint} (utilise-le tel quel)")
     else:
         parts.append("- **Prénom** : libre de ton choix (cohérent avec genre + âge + contexte français)")
+
+    # Niveau d'intensité émotionnelle (calibration explicite de l'écriture).
+    level_label = dict(EMOTIONAL_INTENSITY_LEVELS).get(emotional_intensity, emotional_intensity)
+    parts.append(f"- **Intensité émotionnelle** : {level_label}")
+
     if notes:
         parts.append(f"\n**Notes additionnelles de l'utilisateur** :\n{notes}")
+
+    # Section dédiée qui décrit le niveau en principes opératoires.
+    parts.append("\n" + _emotional_intensity_spec(emotional_intensity))
 
     parts.append("\n## FICHE COMPLÈTE DE L'AVATAR PRIMAIRE\n")
     parts.append(avatar_primary["full_block"])
@@ -102,11 +223,16 @@ def generate_preview(
     first_name_hint: str | None,
     notes: str | None,
     model: str,
+    emotional_intensity: str = EMOTIONAL_INTENSITY_DEFAULT,
 ) -> dict[str, Any]:
     """Génère persona + 3 preview tweets en un appel LLM. Ne touche pas la DB.
 
     Retourne : {persona: {...}, previews: {isolated, thread, quote_trigger}, usage: {...}}
     Le thread est une liste de tweets (≥ 2).
+
+    `emotional_intensity` : niveau de calibration émotionnelle de l'écriture
+    ('tres_emotionnel' | 'emotionnel' | 'peu_emotionnel' | 'rationnel'). Influence
+    voice_signature, vocabulary_yes et les 3 preview tweets. Cf. EMOTIONAL_INTENSITY_LEVELS.
     """
     avatar_primary = avatars_catalog.get_avatar(avatar_id_primary)
     if not avatar_primary:
@@ -118,6 +244,9 @@ def generate_preview(
         raise ValueError(f"gender doit être 'femme' ou 'homme', reçu : {gender!r}")
     if not isinstance(age, int) or age < 18 or age > 70:
         raise ValueError(f"age doit être un entier entre 18 et 70, reçu : {age!r}")
+    valid_levels = {k for k, _ in EMOTIONAL_INTENSITY_LEVELS}
+    if emotional_intensity not in valid_levels:
+        emotional_intensity = EMOTIONAL_INTENSITY_DEFAULT
 
     user_message = _build_user_message(
         gender=gender,
@@ -126,6 +255,7 @@ def generate_preview(
         avatar_secondary=avatar_secondary,
         first_name_hint=first_name_hint,
         notes=notes,
+        emotional_intensity=emotional_intensity,
     )
 
     result = llm_client.call_messages(

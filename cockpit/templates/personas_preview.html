@@ -210,16 +210,18 @@
   <a href="{{ url_for('personas.index') }}" class="btn btn-ghost">Annuler</a>
 
   <div class="row" style="gap:10px;">
-    {# Régénérer = re-poster les inputs originaux vers /new/generate (mêmes presets) #}
-    <form method="post" action="{{ url_for('personas.new_generate') }}" style="margin:0;">
+    {# Régénérer = on intercepte le submit pour demander à l'utilisateur ce qu'il veut
+       changer (modal feedback). La feedback est concaténée à notes avant submit. #}
+    <form method="post" action="{{ url_for('personas.new_generate') }}" style="margin:0;" id="regenerate-form">
       <input type="hidden" name="gender" value="{{ inputs.gender }}">
       <input type="hidden" name="age" value="{{ inputs.age }}">
       <input type="hidden" name="avatar_id_primary" value="{{ inputs.avatar_id_primary }}">
       {% if inputs.avatar_id_secondary %}<input type="hidden" name="avatar_id_secondary" value="{{ inputs.avatar_id_secondary }}">{% endif %}
       <input type="hidden" name="first_name_hint" value="{{ inputs.first_name_hint or '' }}">
-      <input type="hidden" name="notes" value="{{ inputs.notes or '' }}">
+      <input type="hidden" name="notes" id="regen-notes" value="{{ inputs.notes or '' }}">
       <input type="hidden" name="model" value="{{ inputs.model }}">
-      <button type="submit" class="btn btn-ghost" title="Re-générer avec les mêmes presets">⟳ Régénérer</button>
+      <input type="hidden" name="emotional_intensity" value="{{ inputs.emotional_intensity or 'emotionnel' }}">
+      <button type="submit" class="btn btn-ghost" title="Re-générer en précisant ce qui ne va pas">⟳ Régénérer</button>
     </form>
 
     {# Submit du form principal #}
@@ -233,6 +235,56 @@
   in {{ usage.get('input_tokens', 0) }} (cached {{ usage.get('cached_tokens', 0) }}) · out {{ usage.get('output_tokens', 0) }}
 </div>
 {% endif %}
+
+{# ───── Modal : feedback avant régénération ───── #}
+<div id="regen-modal" class="modal-backdrop" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-labelledby="regen-modal-title">
+    <h3 id="regen-modal-title" class="modal-title">Qu'est-ce que tu veux ajuster ?</h3>
+    <p class="modal-sub">
+      Avant de relancer le LLM, dis-lui en une ou deux phrases ce qui ne te plaît pas dans la
+      preview actuelle. C'est ce qui rendra la prochaine génération vraiment différente —
+      sinon le LLM produit souvent quelque chose de proche.
+    </p>
+
+    <div class="field" style="margin-top:14px;">
+      <label class="modal-label" for="regen-feedback">Ce qui ne va pas / ce que tu veux changer</label>
+      <textarea id="regen-feedback" rows="5" class="modal-input"
+                placeholder="Ex : la voix est trop douce, je voulais plus clivant. Ou : la backstory me paraît générique, accentue son côté Marseille. Ou : la photo de profil donne l'impression d'un portrait posé."></textarea>
+    </div>
+
+    <div class="field" style="margin-top:14px;">
+      <div class="modal-label">Aspects à revoir en priorité (optionnel)</div>
+      <div class="modal-chips">
+        <label class="modal-chip"><input type="checkbox" value="voice_signature"> voice_signature</label>
+        <label class="modal-chip"><input type="checkbox" value="bio_twitter"> bio Twitter</label>
+        <label class="modal-chip"><input type="checkbox" value="backstory"> backstory</label>
+        <label class="modal-chip"><input type="checkbox" value="vocabulary"> vocabulaire</label>
+        <label class="modal-chip"><input type="checkbox" value="profile_photo_prompt"> photo de profil</label>
+        <label class="modal-chip"><input type="checkbox" value="banner_prompt"> bannière</label>
+        <label class="modal-chip"><input type="checkbox" value="preview_tweets"> tweets de preview</label>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="regen-cancel">Annuler</button>
+      <button type="button" class="btn btn-primary" id="regen-confirm">Régénérer avec ces ajustements →</button>
+    </div>
+  </div>
+</div>
+
+{# ───── Loading overlay : visible pendant la régénération ───── #}
+<div id="loading-overlay" aria-live="polite">
+  <div class="loading-card">
+    <div class="loading-spinner" role="status" aria-label="Régénération en cours"></div>
+    <div class="loading-title">Régénération de la persona en cours…</div>
+    <div class="loading-sub">
+      Le LLM tient compte de tes ajustements et reformule la persona + 3 nouveaux tweets de preview.
+      <strong>Garde cet onglet ouvert</strong> — la page va se rafraîchir automatiquement quand c'est prêt.
+    </div>
+    <div class="loading-timer" id="loading-timer">00:00</div>
+    <div class="loading-eta">temps écoulé · ~30-60s typique</div>
+  </div>
+</div>
 
 <style>
   .persona-edit-card {}
@@ -389,6 +441,155 @@
     border-color: var(--hairline-strong, #ccc);
   }
   .btn-ghost:hover { background: rgba(0,0,0,0.04); }
+
+  /* Modal feedback */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 20, 24, 0.55);
+    backdrop-filter: blur(3px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9998;
+    padding: 20px;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal-card {
+    background: white;
+    padding: 26px 30px;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    max-width: 560px;
+    width: 100%;
+  }
+  .modal-title {
+    margin: 0 0 8px;
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--ink, #2a2a2a);
+  }
+  .modal-sub {
+    margin: 0;
+    font-size: 13.5px;
+    color: var(--muted-soft, #777);
+    line-height: 1.55;
+  }
+  .modal-label {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted-soft, #888);
+    font-weight: 500;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .modal-input {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid var(--hairline-strong, #ccc);
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+    font-family: inherit;
+    line-height: 1.55;
+    resize: vertical;
+  }
+  .modal-input:focus {
+    outline: none;
+    border-color: var(--burgundy, #6a0f1a);
+    box-shadow: 0 0 0 2px rgba(106, 15, 26, 0.1);
+  }
+  .modal-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .modal-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid var(--hairline, #e5e5e5);
+    border-radius: 14px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .modal-chip:hover { background: rgba(106, 15, 26, 0.06); }
+  .modal-chip input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+  }
+  .modal-chip:has(input:checked) {
+    background: rgba(106, 15, 26, 0.1);
+    border-color: rgba(106, 15, 26, 0.35);
+    color: var(--burgundy, #6a0f1a);
+  }
+  .modal-actions {
+    margin-top: 22px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  /* Loading overlay during regeneration */
+  #loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 20, 24, 0.78);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  #loading-overlay.show { display: flex; }
+  .loading-card {
+    background: white;
+    padding: 32px 40px;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    text-align: center;
+    max-width: 420px;
+  }
+  .loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(106, 15, 26, 0.15);
+    border-top-color: var(--burgundy, #6a0f1a);
+    border-radius: 50%;
+    margin: 0 auto 18px;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ink, #2a2a2a);
+    margin-bottom: 6px;
+  }
+  .loading-sub {
+    font-size: 13.5px;
+    color: var(--muted-soft, #777);
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+  .loading-timer {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--burgundy, #6a0f1a);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 1px;
+  }
+  .loading-eta {
+    font-size: 11px;
+    color: var(--muted-soft, #999);
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
 </style>
 
 <script>
@@ -419,6 +620,89 @@
     };
     ta.addEventListener('input', update);
     update();
+  });
+
+  // ─── Régénération avec modal feedback + loading overlay ───────────────────
+  const regenForm = document.getElementById('regenerate-form');
+  const regenModal = document.getElementById('regen-modal');
+  const regenFeedback = document.getElementById('regen-feedback');
+  const regenConfirm = document.getElementById('regen-confirm');
+  const regenCancel = document.getElementById('regen-cancel');
+  const regenNotesInput = document.getElementById('regen-notes');
+  const overlay = document.getElementById('loading-overlay');
+  const timerEl = document.getElementById('loading-timer');
+
+  function showOverlay() {
+    if (!overlay || !timerEl) return;
+    overlay.classList.add('show');
+    const started = Date.now();
+    setInterval(() => {
+      const elapsed = Math.floor((Date.now() - started) / 1000);
+      const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+      const s = String(elapsed % 60).padStart(2, '0');
+      timerEl.textContent = `${m}:${s}`;
+    }, 1000);
+  }
+
+  if (regenForm && regenModal) {
+    // Intercept submit : on affiche le modal au lieu de soumettre direct
+    regenForm.addEventListener('submit', function(e) {
+      // Permettre de bypass le modal si la feedback a déjà été appliquée
+      // (variable interne) — sinon, on bloque et on ouvre le modal.
+      if (regenForm.dataset.feedbackApplied !== '1') {
+        e.preventDefault();
+        regenModal.classList.add('show');
+        if (regenFeedback) regenFeedback.focus();
+        return;
+      }
+      // Sinon : feedback déjà appliqué, on laisse submit puis on montre l'overlay
+      showOverlay();
+      // Disable button to avoid double-click
+      const btn = regenForm.querySelector('button[type="submit"]');
+      if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+    });
+  }
+
+  if (regenCancel && regenModal) {
+    regenCancel.addEventListener('click', function() {
+      regenModal.classList.remove('show');
+    });
+  }
+
+  if (regenConfirm && regenModal && regenForm) {
+    regenConfirm.addEventListener('click', function() {
+      // Construit la feedback : free text + checkboxes cochées
+      const freeText = (regenFeedback?.value || '').trim();
+      const checked = Array.from(
+        document.querySelectorAll('.modal-chip input[type="checkbox"]:checked')
+      ).map(cb => cb.value);
+
+      // Si rien de précisé, on ne demande pas de feedback — régénération brute
+      const feedbackParts = [];
+      if (freeText) feedbackParts.push(freeText);
+      if (checked.length > 0) feedbackParts.push(`Aspects à revoir en priorité : ${checked.join(', ')}.`);
+
+      if (feedbackParts.length > 0) {
+        const existingNotes = regenNotesInput.value || '';
+        const sep = existingNotes ? '\n\n' : '';
+        const feedbackBlock = '[Ajustement demandé après preview] ' + feedbackParts.join(' ');
+        regenNotesInput.value = existingNotes + sep + feedbackBlock;
+      }
+
+      // Marque que le feedback est appliqué, ferme le modal, soumet le form
+      regenForm.dataset.feedbackApplied = '1';
+      regenModal.classList.remove('show');
+      regenForm.submit();
+    });
+  }
+
+  // bfcache : retour arrière du navigateur → on nettoie l'état
+  window.addEventListener('pageshow', function() {
+    if (overlay) overlay.classList.remove('show');
+    if (regenModal) regenModal.classList.remove('show');
+    if (regenForm) regenForm.dataset.feedbackApplied = '';
+    const btn = regenForm?.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
   });
 })();
 </script>

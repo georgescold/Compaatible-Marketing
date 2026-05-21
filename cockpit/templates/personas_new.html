@@ -80,6 +80,31 @@
   </section>
 
   <section class="card">
+    <h3 class="card-title">Intensité émotionnelle</h3>
+    <div class="card-sub" style="margin-bottom:12px;">
+      Calibre l'écriture de la persona : ponctuation, emojis, capitales, hyperboles.
+      Influence le voice_signature et les 3 tweets de preview.
+    </div>
+    <div class="emotional-grid">
+      {% for level_key, level_label in emotional_levels %}
+      <label class="emotional-option">
+        <input type="radio" name="emotional_intensity" value="{{ level_key }}" {% if level_key == emotional_default %}checked{% endif %}>
+        <div class="emotional-card">
+          <div class="emotional-title">{{ level_label }}</div>
+          <div class="emotional-desc">
+            {% if level_key == 'tres_emotionnel' %}Ponctuation démultipliée, emojis en cluster, capitales pour les pics, théâtralité assumée.
+            {% elif level_key == 'emotionnel' %}Ponctuation expressive modérée, 1-2 emojis intentionnels, émotion incarnée maîtrisée.
+            {% elif level_key == 'peu_emotionnel' %}Ponctuation sobre, emojis rares, émotion par le contenu pas par la forme.
+            {% elif level_key == 'rationnel' %}Langage analytique, zéro emoji, distance froide, registre quasi-essai.
+            {% endif %}
+          </div>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card">
     <h3 class="card-title">Notes additionnelles (optionnel)</h3>
     <div class="field">
       <textarea name="notes" rows="4" class="input" placeholder="Ex : elle vit à Marseille, milieu de l'édition, parents divorcés à 12 ans, lit de la poésie..."></textarea>
@@ -162,6 +187,52 @@
     color: white;
   }
   .btn-primary:hover { background: #4a0a12; }
+  /* Emotional intensity radio cards */
+  .emotional-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .emotional-option {
+    cursor: pointer;
+    display: block;
+  }
+  .emotional-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .emotional-card {
+    border: 1.5px solid var(--hairline-strong, #ccc);
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: white;
+    transition: all 0.15s ease;
+  }
+  .emotional-option:hover .emotional-card {
+    border-color: rgba(106, 15, 26, 0.4);
+    background: rgba(106, 15, 26, 0.02);
+  }
+  .emotional-option input[type="radio"]:checked + .emotional-card {
+    border-color: var(--burgundy, #6a0f1a);
+    background: rgba(106, 15, 26, 0.06);
+    box-shadow: 0 0 0 2px rgba(106, 15, 26, 0.12);
+  }
+  .emotional-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink, #2a2a2a);
+    margin-bottom: 4px;
+  }
+  .emotional-option input[type="radio"]:checked + .emotional-card .emotional-title {
+    color: var(--burgundy, #6a0f1a);
+  }
+  .emotional-desc {
+    font-size: 12.5px;
+    color: var(--muted-soft, #777);
+    line-height: 1.45;
+  }
+
   /* Cost estimate card under model dropdown */
   .cost-card {
     margin-top: 14px;
