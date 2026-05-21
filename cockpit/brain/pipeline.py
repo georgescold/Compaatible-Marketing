@@ -970,16 +970,31 @@ def _auto_match_images(run_id: int) -> None:
 def _fetch_voice_sample(persona_id: int, limit: int = 60) -> list[str]:
     """Récupère un échantillon de tweets déjà produits par la persona pour calibrer la voix.
 
-    Stratégie : tweets les plus récents, on coupe à `limit`. Si la persona n'a aucun tweet
-    encore (cas limite : extension lancée sur un run vide), on retourne une liste vide.
+    Stratégie : on échantillonne UNIQUEMENT sur les tweets ORIGINAUX (extension_idx IS NULL).
+    Raison : si on incluait les extensions précédentes, chaque nouvelle extension se
+    calibrerait sur les précédentes — la voix dérive en se compoundant à chaque génération
+    (analyse menée sur run 56 Thaïs : mentions Compaatible 14% origines → 23% en ext,
+    "méthode" ×8, "30 facettes" ×5). La voix de référence reste celle adaptée des sources.
+
+    Si la persona n'a aucun tweet original encore (cas limite : extension lancée sur un run
+    vide), fallback sur tous les tweets de la persona.
     """
     with db.cursor() as cur:
         cur.execute(
             "SELECT content FROM mkt_tweets WHERE persona_id = %s "
+            "AND extension_idx IS NULL "
             "ORDER BY created_at DESC, id DESC LIMIT %s",
             (persona_id, limit),
         )
         rows = cur.fetchall()
+        if not rows:
+            # Fallback : pas d'originaux disponibles, on prend ce qu'on a
+            cur.execute(
+                "SELECT content FROM mkt_tweets WHERE persona_id = %s "
+                "ORDER BY created_at DESC, id DESC LIMIT %s",
+                (persona_id, limit),
+            )
+            rows = cur.fetchall()
     return [r["content"] for r in rows if r.get("content")]
 
 

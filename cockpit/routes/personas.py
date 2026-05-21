@@ -1,13 +1,19 @@
-"""Routes Personas : liste, détail, téléchargements CSV (source + Cortex agrégé), suppression."""
+"""Routes Personas : liste, détail, téléchargements CSV (source + Cortex agrégé), suppression.
+
+Création manuelle (sans CSV) : routes /new (form) → /new/generate (LLM) → /new/save.
+Régénération : POST /new/generate avec le même payload.
+"""
 from __future__ import annotations
 import io
+import json
 import sys
 import traceback
 from pathlib import Path
 
-from flask import Blueprint, render_template, redirect, url_for, flash, send_file
+from flask import Blueprint, render_template, redirect, url_for, flash, send_file, request
 
-from brain import pipeline, cortex_validator
+from brain import pipeline, cortex_validator, avatars_catalog, persona_manual, db
+from config import Config
 
 bp = Blueprint("personas", __name__, url_prefix="/personas")
 
@@ -99,6 +105,137 @@ def download_cortex_csv(persona_id: int):
 
     filename = f"compaatible_{persona['first_name']}_corpus.csv"
     return send_file(bio, mimetype="text/csv", as_attachment=True, download_name=filename)
+
+
+@bp.route("/new", methods=["GET"])
+def new():
+    """Formulaire de création manuelle d'une persona."""
+    avatars = avatars_catalog.get_avatars_brief()
+    settings = db.get_settings()
+    default_model = settings.get("model_adaptation") or "claude-sonnet-4-6"
+    return render_template(
+        "personas_new.html",
+        avatars=avatars,
+        models=Config.AVAILABLE_MODELS,
+        default_model=default_model,
+    )
+
+
+def _parse_int(val: str | None, default: int | None = None) -> int | None:
+    if val is None or val == "":
+        return default
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return default
+
+
+@bp.route("/new/generate", methods=["POST"])
+def new_generate():
+    """Reçoit le formulaire (ou re-soumet pour régénérer), appelle le LLM, affiche la preview."""
+    avatars = avatars_catalog.get_avatars_brief()
+
+    gender = (request.form.get("gender") or "").strip()
+    age = _parse_int(request.form.get("age"))
+    avatar_primary = _parse_int(request.form.get("avatar_id_primary"))
+    avatar_secondary = _parse_int(request.form.get("avatar_id_secondary")) or None
+    first_name_hint = (request.form.get("first_name_hint") or "").strip() or None
+    notes = (request.form.get("notes") or "").strip() or None
+    model = (request.form.get("model") or "").strip()
+
+    # Validation
+    errors = []
+    if gender not in ("femme", "homme"):
+        errors.append("Genre invalide (femme ou homme attendu).")
+    if not age or age < 18 or age > 70:
+        errors.append("Âge invalide (entier entre 18 et 70 attendu).")
+    if not avatar_primary or avatar_primary < 1 or avatar_primary > 11:
+        errors.append("Avatar primaire invalide (1-11 attendu).")
+    if avatar_secondary and (avatar_secondary < 1 or avatar_secondary > 11):
+        errors.append("Avatar secondaire invalide (1-11 ou vide).")
+    if avatar_secondary and avatar_secondary == avatar_primary:
+        errors.append("L'avatar secondaire doit être différent du primaire.")
+    if not model:
+        errors.append("Modèle LLM requis.")
+
+    if errors:
+        for e in errors:
+            flash(e, "error")
+        return redirect(url_for("personas.new"))
+
+    try:
+        result = persona_manual.generate_preview(
+            gender=gender,
+            age=age,
+            avatar_id_primary=avatar_primary,
+            avatar_id_secondary=avatar_secondary,
+            first_name_hint=first_name_hint,
+            notes=notes,
+            model=model,
+        )
+    except Exception as e:
+        traceback.print_exc(file=sys.stdout)
+        flash(f"Erreur génération : {type(e).__name__}: {e}", "error")
+        return redirect(url_for("personas.new"))
+
+    inputs = {
+        "gender": gender,
+        "age": age,
+        "avatar_id_primary": avatar_primary,
+        "avatar_id_secondary": avatar_secondary,
+        "first_name_hint": first_name_hint or "",
+        "notes": notes or "",
+        "model": model,
+    }
+    # Sérialisé en hidden field pour la sauvegarde (atomic transfer client → server).
+    draft_payload = json.dumps({
+        "persona": result["persona"],
+        "previews": result["previews"],
+        "inputs": inputs,
+    }, ensure_ascii=False)
+
+    return render_template(
+        "personas_preview.html",
+        persona=result["persona"],
+        previews=result["previews"],
+        avatar_primary=avatars_catalog.get_avatar(avatar_primary),
+        avatar_secondary=avatars_catalog.get_avatar(avatar_secondary) if avatar_secondary else None,
+        draft_payload=draft_payload,
+        inputs=inputs,
+        avatars=avatars,
+        models=Config.AVAILABLE_MODELS,
+        model=model,
+        usage=result.get("usage", {}),
+    )
+
+
+@bp.route("/new/save", methods=["POST"])
+def new_save():
+    """Persiste la persona draft. Les preview tweets ne sont PAS sauvegardés."""
+    raw = request.form.get("draft_payload")
+    if not raw:
+        flash("Payload de persona manquant — relance la génération.", "error")
+        return redirect(url_for("personas.new"))
+    try:
+        draft = json.loads(raw)
+    except json.JSONDecodeError:
+        flash("Payload de persona corrompu — relance la génération.", "error")
+        return redirect(url_for("personas.new"))
+
+    persona = draft.get("persona") or {}
+    if not persona.get("first_name"):
+        flash("Persona invalide (prénom manquant).", "error")
+        return redirect(url_for("personas.new"))
+
+    try:
+        persona_id = persona_manual.save_persona(persona)
+    except Exception as e:
+        traceback.print_exc(file=sys.stdout)
+        flash(f"Erreur sauvegarde : {type(e).__name__}: {e}", "error")
+        return redirect(url_for("personas.new"))
+
+    flash(f"Persona « {persona['first_name']} » créée (#{persona_id}).", "success")
+    return redirect(url_for("personas.detail", persona_id=persona_id))
 
 
 @bp.route("/<int:persona_id>/delete", methods=["POST"])

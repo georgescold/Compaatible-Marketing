@@ -274,6 +274,55 @@ def _rebalance_last_two(combined: str, max_len: int) -> list[str] | None:
     return [left, right]
 
 
+# Détection d'énumération inline numérotée : "1. ... 2. ... 3. ..." ou "1) ... 2) ...".
+# Doctrine Loys (2026-05-21) : une énumération dans un thread doit avoir UN tweet
+# par item, jamais tous les items entassés dans un seul post. Le LLM produit
+# parfois la version inline malgré le prompt → on auto-splitte au moment d'insérer.
+_ENUM_ITEM_RE = re.compile(r"(?:(?<=^)|(?<=[\s.,!?:]))(\d{1,2})[\.\)]\s+")
+_ENUM_PREAMBLE_MIN_LEN = 20  # préambule plus court → on l'attache au premier item
+
+
+def _split_enumeration(content: str) -> list[str] | None:
+    """Détecte une énumération inline numérotée (1. … 2. … 3. …) et la découpe
+    en un item par tweet.
+
+    Conditions de déclenchement :
+    - ≥ 2 items détectés
+    - les numéros forment une séquence stricte commençant à 1 (1, 2, 3, …)
+    - chaque numéro est précédé d'un début de chaîne, d'un espace, ou d'une
+      ponctuation de fin de phrase (évite "1.5" ou "il y a 7. raisons")
+
+    Retourne :
+    - None si pas d'énumération valide
+    - Liste de strings sinon. Le préambule éventuel (texte avant "1.") devient
+      son propre tweet s'il fait ≥ 20 chars ; sinon il est collé au premier item.
+    """
+    if not content:
+        return None
+    matches = list(_ENUM_ITEM_RE.finditer(content))
+    if len(matches) < 2:
+        return None
+    nums = [int(m.group(1)) for m in matches]
+    if nums[0] != 1:
+        return None
+    for i in range(1, len(nums)):
+        if nums[i] != nums[i - 1] + 1:
+            return None
+
+    items: list[str] = []
+    for i, m in enumerate(matches):
+        start = m.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
+        items.append(content[start:end].strip())
+
+    preamble = content[: matches[0].start()].strip()
+    if preamble:
+        if len(preamble) >= _ENUM_PREAMBLE_MIN_LEN:
+            return [preamble, *items]
+        items[0] = f"{preamble} {items[0]}".strip()
+    return items
+
+
 def _split_into_thread(content: str, max_len: int = 280) -> list[str]:
     """Découpe intelligente d'un contenu trop long.
 
@@ -649,6 +698,20 @@ def generate_extension(
     inserted_total = 0
     failed_chunks_ext = 0
 
+    # Budget mentions Compaatible au niveau du RUN d'extension entier (pas par chunk).
+    # Sans ça, chaque chunk peut taper son plafond et le ratio global dérive (analyse
+    # run 56 Thaïs : cible 14% par chunk → ratio global observé 23%). On calcule la
+    # cible totale ici, et avant chaque chunk on recompute le budget restant à partir
+    # de ce qui a déjà été mentionné. Si on est en avance, le chunk suivant baisse
+    # son plafond. Cible totale = target_messages * target_ratio observé.
+    extension_mention_target_total: int | None = None
+    if mention_stats and mention_stats.get("ratio") is not None:
+        extension_mention_target_total = max(0, round(target_messages * mention_stats["ratio"]))
+        _log(
+            f"extension · budget mentions Compaatible · cible globale {extension_mention_target_total} "
+            f"sur ~{target_messages} messages (ratio cible {mention_stats['ratio']*100:.1f}% des originaux)"
+        )
+
     for chunk_idx in range(start_chunk_idx, total_chunks):
         if progress_run_id is not None and run_state.is_pause_requested(progress_run_id):
             _log(f"pause demandee · sortie propre avant chunk extension {chunk_idx+1}/{total_chunks}")
@@ -664,6 +727,17 @@ def generate_extension(
         chunk_count = chunks_sizes[chunk_idx]
         human_idx = chunk_idx + 1
         t0 = time.time()
+
+        # Budget restant pour ce chunk (run-level cap, pas per-chunk)
+        remaining_budget: int | None = None
+        if extension_mention_target_total is not None:
+            mentions_so_far = _count_extension_mentions_so_far(csv_run_id, extension_idx)
+            remaining_budget = max(0, extension_mention_target_total - mentions_so_far)
+            _log(
+                f"extension chunk {human_idx}/{total_chunks} · budget mentions restant : "
+                f"{remaining_budget} (déjà mentionné : {mentions_so_far}/{extension_mention_target_total})"
+            )
+
         _log(f"extension chunk {human_idx}/{total_chunks} ({chunk_count} tweets) · appel API...")
         if progress_run_id is not None:
             run_state.update_message(progress_run_id, f"Chunk {human_idx}/{total_chunks} · génération de {chunk_count} tweets originaux...", stage_key="copy")
@@ -673,6 +747,8 @@ def generate_extension(
                 already_generated=already_generated,
                 mention_stats=mention_stats,
                 style_stats=style_stats,
+                remaining_mention_budget=remaining_budget,
+                target_messages_total=target_messages,
             )
         except llm_client.LLMQuotaExhaustedError as e:
             _log(f"extension chunk {human_idx}/{total_chunks} QUOTA · {e} · arret immediat de la boucle")
@@ -750,6 +826,12 @@ def generate_extension(
                 f"Top-up · {current_posts}/{target_posts} posts · génération de {extra_n} tweets...",
                 stage_key="copy",
             )
+        # Budget restant pour ce top-up (run-level cap)
+        extra_remaining_budget: int | None = None
+        if extension_mention_target_total is not None:
+            mentions_so_far = _count_extension_mentions_so_far(csv_run_id, extension_idx)
+            extra_remaining_budget = max(0, extension_mention_target_total - mentions_so_far)
+
         try:
             extra_chunk = _process_extension_chunk(
                 extra_n, playbook, persona, existing_sample, model,
@@ -757,6 +839,8 @@ def generate_extension(
                 already_generated=already_generated,
                 mention_stats=mention_stats,
                 style_stats=style_stats,
+                remaining_mention_budget=extra_remaining_budget,
+                target_messages_total=target_messages,
             )
         except llm_client.LLMQuotaExhaustedError as e:
             _log(f"extension top-up {extra_done} QUOTA · {e} · arret immediat de la boucle top-up")
@@ -807,6 +891,34 @@ def generate_extension(
     }
 
 
+def _count_extension_mentions_so_far(csv_run_id: int, extension_idx: int | None) -> int:
+    """Compte les tweets de l'extension en cours qui nomment Compaatible.
+
+    Cible : run-level cap sur les mentions, pour éviter la dérive observée
+    (cible per-chunk 14% mais ratio global 23% sur run 56 Thaïs). Avant chaque
+    chunk on regarde combien on a déjà mentionné, on en déduit le budget restant.
+
+    Le filtre est cohérent avec `_fetch_persona_mention_ratio` (LIKE '%compaatible%'
+    incluant les URL) pour que cible et compteur s'alignent.
+    """
+    with db.cursor() as cur:
+        if extension_idx is None:
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM mkt_tweets "
+                "WHERE csv_run_id = %s AND extension_idx IS NULL "
+                "AND LOWER(content) LIKE %s",
+                (csv_run_id, "%compaatible%"),
+            )
+        else:
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM mkt_tweets "
+                "WHERE csv_run_id = %s AND extension_idx = %s "
+                "AND LOWER(content) LIKE %s",
+                (csv_run_id, extension_idx, "%compaatible%"),
+            )
+        return int(cur.fetchone()["n"] or 0)
+
+
 def _count_posts_for_extension(csv_run_id: int, extension_idx: int | None) -> int:
     """Compte les posts atomiques pour un (csv_run_id, extension_idx) donne.
 
@@ -851,6 +963,8 @@ def _process_extension_chunk(
     already_generated: list[dict],
     mention_stats: dict | None = None,
     style_stats: dict | None = None,
+    remaining_mention_budget: int | None = None,
+    target_messages_total: int | None = None,
 ) -> dict:
     """Un chunk d'extension : on demande chunk_count tweets originaux, en partageant
     l'échantillon des tweets existants pour calibrer la voix + les tweets déjà générés
@@ -858,6 +972,9 @@ def _process_extension_chunk(
 
     mention_stats : ratio Compaatible observé sur les originaux de la persona, à
     répliquer (cible naturelle au lieu d'une fourchette générique).
+    remaining_mention_budget : si fourni, plafond DUR de mentions Compaatible pour
+    ce chunk, calculé au niveau du run d'extension. Évite la dérive per-chunk
+    qui compoundait le ratio global.
     style_stats : ratios threads-vs-isoles et needs_image observes sur les
     originaux. Sert a aligner la cadence de l'extension sur la signature deja
     construite par la persona — coherence maximale du compte dans le temps.
@@ -867,9 +984,76 @@ def _process_extension_chunk(
         "type": "text",
         "text": f"## Playbook source\n```json\n{json.dumps(playbook, indent=2, ensure_ascii=False)}\n```",
     }
+
+    # VOIX DE LA PERSONA — bloc dédié hors du JSON pour qu'il pèse plus lourd
+    # que les autres champs (corrige la dérive observée : extensions plus emojis,
+    # plus formulaires, plus marketing que les originaux malgré voice_signature
+    # présente dans le JSON dump).
+    voice_sig = (persona.get("voice_signature") or "").strip()
+    vocab_yes = persona.get("vocabulary_yes") or []
+    vocab_no = persona.get("vocabulary_no") or []
+    voice_block_parts = [
+        "## VOIX DE LA PERSONA — marqueurs NON NÉGOCIABLES\n",
+        "Ces marqueurs définissent la signature reconnaissable de la persona. ",
+        "Avant chaque tweet, relis cette section et vérifie que ton tweet en porte ",
+        "au moins quelques-uns. **Pas de pastiche, pas de surdose** — l'objectif est ",
+        "que tes tweets puissent se glisser dans le corpus existant sans qu'on ",
+        "devine qu'ils sont postérieurs.\n",
+    ]
+    if voice_sig:
+        voice_block_parts.append(f"\n### Signature de voix\n{voice_sig}\n")
+    if vocab_yes:
+        voice_block_parts.append(
+            "\n### Vocabulaire SIGNATURE (à mobiliser régulièrement)\n"
+            + ", ".join(f"`{w}`" for w in vocab_yes)
+            + "\n"
+        )
+    if vocab_no:
+        voice_block_parts.append(
+            "\n### Vocabulaire BANNI pour cette persona (jamais)\n"
+            + ", ".join(f"`{w}`" for w in vocab_no)
+            + "\n"
+        )
+    voice_block_parts.append(
+        "\n### Anti-dérive éditoriale\n"
+        "Quand on prolonge un corpus existant, la tentation est forte de glisser hors "
+        "voix sans s'en rendre compte. Quatre dérives à surveiller pour TOI sur cette "
+        "persona précise :\n\n"
+        "1. **Densité d'emojis vs la signature** : compare la fréquence d'emojis que "
+        "tu vas produire avec ce que dit la `Signature de voix` ci-dessus. Si elle "
+        "décrit une persona qui en utilise peu, n'en ajoute pas par habitude. Si elle "
+        "en utilise beaucoup, ne les retire pas non plus. C'est la signature qui dicte, "
+        "pas une moyenne.\n\n"
+        "2. **Ton quand tu nommes Compaatible** : la persona parle de l'app comme elle "
+        "parlerait à une copine — elle la cite, elle raconte ce que ça a changé pour "
+        "elle. Elle ne fait PAS une démonstration produit. Quand un tweet glisse vers "
+        "un registre argumentaire (fonctionnalités, propriétés du produit, mécanismes "
+        "techniques nommés comme des features), tu es sorti de la voix. Reviens au "
+        "registre d'expérience vécue.\n\n"
+        "3. **Variété des ouvertures** : si tu remarques que plusieurs de tes tweets "
+        "commencent par le même type de structure (interrogation, énoncé général, "
+        "constatation), c'est un signal de paresse éditoriale. Les hook_patterns "
+        "doivent rester aussi variés que dans l'échantillon des tweets existants — pas "
+        "concentrés sur un seul mode.\n\n"
+        "4. **Cadence thread/isolé** : ne dérive pas vers plus de threads (ou moins) "
+        "que ce que la persona fait dans l'échantillon. La cadence chiffrée que tu "
+        "reçois plus bas est la cible — respecte-la.\n\n"
+        "**Test mental avant chaque tweet** : si tu le glissais au milieu de "
+        "l'échantillon des tweets existants, est-ce qu'un lecteur attentif pourrait "
+        "deviner que c'est toi (LLM en extension) plutôt que la persona ? Si oui, "
+        "réécris. Le critère, c'est l'indétectabilité."
+    )
+    voice_block = {
+        "type": "text",
+        "text": "".join(voice_block_parts),
+    }
+
+    # Reste de la persona (backstory, avatars, etc.) — utile pour la cohérence
+    # mais sans la voix qui a été extraite plus haut.
+    persona_minus_voice = {k: v for k, v in persona.items() if k not in ("voice_signature", "vocabulary_yes", "vocabulary_no")}
     persona_block = {
         "type": "text",
-        "text": f"## Persona Compaatible\n```json\n{json.dumps(persona, indent=2, ensure_ascii=False)}\n```",
+        "text": f"## Persona Compaatible (contexte)\n```json\n{json.dumps(persona_minus_voice, indent=2, ensure_ascii=False)}\n```",
     }
     existing_block = {
         "type": "text",
@@ -889,27 +1073,57 @@ def _process_extension_chunk(
             + "\n".join(f"- {t.get('content','')}" for t in recent if t.get("content"))
         )
 
-    # Cible mentions Compaatible : on replique le ratio observe sur les originaux de
-    # la persona (constate empiriquement : les extensions tendent a sur-mentionner).
+    # Plafond mentions Compaatible : on observe le ratio des originaux pour fixer
+    # un plafond, JAMAIS une cible. Doctrine Loys : les mentions sont strictement
+    # adaptatives — un tweet ne nomme Compaatible QUE si la matière s'y prête.
+    # Aucun quota minimal, jamais. Le plafond global empêche la sur-mention que
+    # produirait sinon le cumul des plafonds per-chunk (run 56 Thaïs : cumul à
+    # 23% alors que ratio originaux 14%).
     if mention_stats and mention_stats.get("ratio") is not None:
         target_ratio = mention_stats["ratio"]
-        expected = round(chunk_count * target_ratio)
+        natural_count = round(chunk_count * target_ratio)
+        # Plafond per-chunk avec un peu de flex au-dessus du naturel
+        per_chunk_cap = max(natural_count + 1, 2)
+        # Plafond effectif = min(per-chunk, budget restant au niveau du run)
+        if remaining_mention_budget is not None:
+            effective_cap = min(per_chunk_cap, remaining_mention_budget)
+            budget_note = (
+                f"\n\n**Budget global restant pour le run d'extension** : "
+                f"{remaining_mention_budget} mention(s) Compaatible maximum sur l'ensemble "
+                "des chunks restants. Ce budget se consomme au fil de ton avancée — il "
+                "diminue chaque fois que tu nommes Compaatible dans un chunk précédent. "
+                "Quand il atteint 0, plus aucune mention n'est autorisée jusqu'à la fin "
+                "de l'extension."
+            )
+        else:
+            effective_cap = per_chunk_cap
+            budget_note = ""
+
         mention_target_text = (
-            "\n\n## CIBLE MENTIONS COMPAATIBLE (specifique a cette persona)\n\n"
+            "\n\n## PLAFOND MENTIONS COMPAATIBLE — strictement adaptatif, jamais forcé\n\n"
             f"Sur les **{mention_stats['total']} tweets originaux** de cette persona, "
-            f"**{mention_stats['named']} nomment Compaatible** (ratio {target_ratio*100:.1f}%). "
-            f"C'est le ratio naturel pour SA voix. **Replique ce ratio** sur ce chunk : "
-            f"vise environ **{expected} mention(s)** sur les {chunk_count} tweets (0 ou 1 "
-            f"d'ecart OK selon ce qui se prete naturellement). "
-            f"**Plafond strict : {max(expected + 1, 2)} mentions sur ce chunk.** "
-            "La regle systeme dit 5-10%, mais TA cible specifique pour cette persona est "
-            f"{target_ratio*100:.1f}%. Reste fidele a ce qui marche deja pour elle."
+            f"**{mention_stats['named']} nomment Compaatible** ({target_ratio*100:.1f}%). "
+            "C'est ce que produit cette persona QUAND la matière s'y prête — pas un quota "
+            "à atteindre.\n\n"
+            "**Règle absolue : tu ne mentionnes Compaatible que si le tweet s'y prête "
+            "naturellement.** Aucun chunk n'a de quota minimal. **0 mention sur ce chunk "
+            "est un résultat parfaitement valide** si aucun tweet ne s'y prête — c'est "
+            "souvent le bon choix par défaut.\n\n"
+            f"**Plafond DUR sur ce chunk : {effective_cap} mention(s) maximum.** "
+            "Au-delà, tu forces des pivots qui ne tiennent pas naturellement — donc tu "
+            "sors hors voix. Ce plafond est calculé pour que sur l'ensemble du run "
+            "d'extension le ratio global reste proche du ratio observé sur les "
+            "originaux ; si chaque chunk pousse au plafond, le ratio global explose "
+            "au-dessus de la signature de la persona."
+            f"{budget_note}"
         )
     else:
         mention_target_text = (
-            "\n\n## CIBLE MENTIONS COMPAATIBLE\n\n"
-            "Pas assez de tweets originaux pour calculer un ratio specifique persona. "
-            "Fallback : cible **5-8%** sur le chunk, plafond strict 10%."
+            "\n\n## PLAFOND MENTIONS COMPAATIBLE — strictement adaptatif\n\n"
+            "Pas assez de tweets originaux pour calculer un ratio spécifique à la persona. "
+            "Doctrine par défaut : tu mentionnes Compaatible UNIQUEMENT si le tweet s'y "
+            "prête naturellement, jamais par quota. **Plafond strict : 10% des tweets du "
+            "chunk maximum.** 0 mention est parfaitement valide si rien ne s'y prête."
         )
 
     # Cibles stylistiques (threads vs isoles, densite image) calees sur les
@@ -958,7 +1172,10 @@ def _process_extension_chunk(
         ),
     }
 
-    user_content = [playbook_block, persona_block, existing_block, chunk_block]
+    # Ordre des blocs : la voix passe en premier (avant playbook/persona/échantillon)
+    # pour que le LLM la voie comme la contrainte la plus saillante. La persona JSON
+    # (backstory, avatars) reste en contexte mais sans la voix qui a été extraite.
+    user_content = [voice_block, playbook_block, persona_block, existing_block, chunk_block]
     sys_blocks = prompts.build_system_for_extension()
     result = llm_client.call_messages(
         model=model,
@@ -1253,8 +1470,20 @@ def _insert_tweets_batch(tweets: list[dict], csv_run_id: int, persona_id: int,
         # Résoudre maintenant (suffixe si collision avec un autre chunk de ce run)
         resolved_explicit_tk = _resolve_tk(explicit_tk)
 
-        # Split intelligent si > 280 chars
-        parts = _split_into_thread(content, max_len=280)
+        # Étape 1 : énumération inline ("1. … 2. … 3. …") → un item par tweet.
+        # Doctrine : pas d'énumération entassée dans un seul post. Si détectée,
+        # on force le mode thread.
+        enum_parts = _split_enumeration(content)
+        if enum_parts and len(enum_parts) >= 2:
+            # Chaque item peut encore dépasser 280 chars → on passe chacun dans
+            # le splitter de longueur. La liste finale enchaîne tous les morceaux.
+            parts: list[str] = []
+            for item in enum_parts:
+                parts.extend(_split_into_thread(item, max_len=280))
+        else:
+            # Étape 2 (cas standard) : split par longueur si > 280 chars
+            parts = _split_into_thread(content, max_len=280)
+
         if len(parts) > 1:
             autosplit_count += 1
             # Si l'IA n'avait pas prévu de thread, on en crée un auto-split.

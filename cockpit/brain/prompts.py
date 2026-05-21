@@ -482,6 +482,84 @@ def build_system_for_persona() -> list[dict[str, Any]]:
     ]
 
 
+# ─── Création manuelle de persona depuis l'onglet Personas (sans CSV source) ───
+
+def build_system_for_manual_persona() -> list[dict[str, Any]]:
+    """Mission : créer une persona depuis (genre, âge, avatar choisi) + générer 3 tweets preview.
+
+    Différence vs `build_system_for_persona` :
+    - Pas de tweets sources → la voix s'invente depuis la fiche avatar fournie.
+    - Le LLM peut créer des personas hommes OU femmes (vs femme-only sinon).
+    - Produit la persona + 3 tweets preview en un seul appel (isolé, thread, quote-trigger).
+    """
+    return [
+        build_role_block(),
+        *build_blocks_for_persona(),
+        *build_blocks_for_copywriting(language="fr"),
+        {
+            "type": "text",
+            "text": (
+                "## MISSION ACTUELLE : CRÉATION MANUELLE D'UNE PERSONA + PREVIEW\n\n"
+                "L'utilisateur a choisi via l'UI : un genre (femme ou homme), un âge précis, un "
+                "avatar primaire (1-11), éventuellement un secondaire, éventuellement un prénom "
+                "et des notes additionnelles. **Pas de tweets sources** : tu inventes une voix "
+                "cohérente avec ces presets et la fiche avatar fournie.\n\n"
+                "Contraintes ABSOLUES :\n"
+                "- **Respecte EXACTEMENT le genre et l'âge** des presets utilisateur.\n"
+                "- **Respecte l'avatar primaire choisi** (et secondaire si présent). La psychologie, "
+                "les peurs, le rapport aux apps de la persona doivent matcher la fiche avatar.\n"
+                "- **Prénom UNIQUE** : pas un prénom déjà utilisé par une autre persona. La liste "
+                "est dans le bloc utilisateur. Si l'utilisateur a imposé un prénom, utilise-le tel "
+                "quel (le système gère l'unicité par suffixe au besoin).\n"
+                "- **Cohérence interne forte** : prénom × âge × backstory × voix × vocabulaire = "
+                "un tout. Pas de personnage assemblé en pièces détachées.\n"
+                "- **Voix dense et incarnée** : voir la SECTION DÉDIÉE LE CHAMP `voice_signature` "
+                "déjà consignée plus haut. Comme tu n'observes pas de tweets sources, tu DOIS "
+                "inventer ces tics — mais ils doivent rester crédibles pour cette personne précise.\n"
+                "- **Mention Compaatible interdite dans la bio.**\n\n"
+                "## EN PLUS DE LA PERSONA — 3 TWEETS DE PREVIEW\n\n"
+                "Produis également 3 tweets qui démontrent la voix que tu viens de définir. "
+                "Objectif : permettre à l'utilisateur de valider visuellement la voix avant "
+                "d'enregistrer la persona.\n\n"
+                "1. **isolated** : un tweet isolé (one-liner ou observation, ≤ 280 chars). "
+                "Pas de mention Compaatible. Pure incarnation de la voix.\n\n"
+                "2. **thread** : un thread de 3 tweets (T1 hook, T2 développement avec mention "
+                "Compaatible naturelle, T3 chute). Respecte toutes les règles de threads de la "
+                "consigne système (T1 = hook, jamais Compaatible en T1, signal de continuation "
+                "fin T1, ≤ 280 chars par tweet). Le format est une liste JSON de 3 strings.\n\n"
+                "3. **quote_trigger** : un tweet isolé qui pose une thèse incarnée clivante "
+                "(hook_pattern hot_take), pensé pour déclencher un RT cité. Voir doctrine "
+                "quote-trigger dans la consigne système. ≤ 280 chars. Pas de mention Compaatible.\n\n"
+                "**Format de sortie : JSON strict, rien d'autre.**\n\n"
+                "```json\n"
+                "{\n"
+                '  "persona": {\n'
+                '    "first_name": "<prénom unique cohérent avec genre/âge/contexte français>",\n'
+                '    "age": <int — DOIT être exactement la valeur des presets>,\n'
+                '    "gender": "<femme|homme — DOIT être exactement la valeur des presets>",\n'
+                '    "bio_twitter": "≤ 160 caractères. Format LIBRE adapté à cette persona (voir section dédiée). Anti-pattern interdit : le squelette \\"[âge] ans. J\'... Sur X, Y, Z.\\"",\n'
+                '    "backstory": "5 à 15 lignes. Parcours pro, lieu de vie, contexte amoureux passé, ce qui fait sa voix unique.",\n'
+                '    "avatar_id_primary": <int 1-11 — DOIT être exactement la valeur des presets>,\n'
+                '    "avatar_id_secondary": <int 1-11 ou null — DOIT être exactement la valeur des presets>,\n'
+                '    "voice_signature": "Paragraphe dense couvrant les 7 dimensions (ponctuation, emojis, tournures, longueurs, casse, posture émotionnelle, rythmique).",\n'
+                '    "vocabulary_yes": ["<6 à 12 mots ou expressions signature spécifiques à cette persona>"],\n'
+                '    "vocabulary_no": ["<5 à 10 mots que cette persona ne dirait jamais>"],\n'
+                '    "profile_photo_prompt": "4 à 7 phrases denses, prêt à coller dans un générateur d\'image.",\n'
+                '    "banner_prompt": "5 à 8 phrases denses pour la bannière Twitter (1500x500, ratio 3:1)."\n'
+                "  },\n"
+                '  "previews": {\n'
+                '    "isolated": "<tweet isolé ≤ 280 chars, pas de mention Compaatible>",\n'
+                '    "thread": ["<T1 hook avec signal de continuation>", "<T2 développement + mention Compaatible naturelle>", "<T3 chute>"],\n'
+                '    "quote_trigger": "<tweet hot_take clivant ≤ 280 chars, pas de mention Compaatible>"\n'
+                "  }\n"
+                "}\n"
+                "```\n\n"
+                "Pas de commentaire avant ou après. Juste le JSON brut."
+            ),
+        },
+    ]
+
+
 # ─── Stage extension : génération de tweets sans source (invention pure) ────
 
 def build_system_for_extension(language: str = "fr") -> list[dict[str, Any]]:
@@ -704,6 +782,27 @@ def build_system_for_extension(language: str = "fr") -> list[dict[str, Any]]:
                 "**Invariants techniques** : chaque tweet ≤ 280 caractères, T1 lisible seul (il "
                 "sera affiché à l'unité dans le feed), `thread_key` en kebab-case partagé par "
                 "tous les tweets du thread.\n\n"
+                "### Énumérations numérotées : un item = un tweet (règle dure)\n\n"
+                "Si tu écris une énumération `1. … 2. … 3. …` (ou `1) … 2) … 3) …`) avec **2 items "
+                "ou plus**, chaque item DOIT vivre dans son propre tweet du thread. Jamais "
+                "d'items entassés dans un seul post.\n\n"
+                "**Forme attendue** :\n"
+                "- T1 (hook) : pose la promesse ou le constat qui annonce la liste.\n"
+                "- T2 : `1. <item 1> + son détail` (la phrase qui développe le point).\n"
+                "- T3 : `2. <item 2> + son détail`.\n"
+                "- T4 : `3. <item 3> + son détail`.\n"
+                "- T_last : chute, pivot, ou ouverture.\n\n"
+                "**Anti-exemple à NE JAMAIS produire** :\n"
+                "❌ T2 = `1. tu fais X. 2. tu fais Y. 3. tu fais Z.` (3 items collés en un post)\n"
+                "✅ T2 = `1. tu fais X.` puis T3 = `2. tu fais Y.` puis T4 = `3. tu fais Z.`\n\n"
+                "Cette règle s'applique à toutes les énumérations explicitement numérotées dans un "
+                "thread, peu importe le format (Top N, framework, mythes débunkés en liste, raisons "
+                "chiffrées, étapes). Si tu sens que tu vas écrire `1. … 2. … 3. …` dans un même "
+                "tweet, **stop** : redistribue tout de suite chaque item sur son propre tweet du "
+                "thread.\n\n"
+                "Si la liste est courte (3 items très brefs) et que tu hésites à thread-ifier, "
+                "préfère quand même un item par tweet : la lisibilité dans le feed est meilleure et "
+                "ça respecte la doctrine de chaînage narratif (un tweet = un beat).\n\n"
                 "### Règle anti-doublon\n\n"
                 "Aucun de tes tweets ne doit reformuler un tweet de l'échantillon existant. Si tu "
                 "reprends un thème, change l'angle, la structure, la chute. Vérifie mentalement "

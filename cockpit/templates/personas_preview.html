@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% block title %}Preview · {{ persona.first_name }} · Cockpit{% endblock %}
+{% block crumb %}Personas · Créer · Preview{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <a href="{{ url_for('personas.new') }}" class="text-xs muted"
+       style="display:inline-block; margin-bottom:8px; text-decoration:none;">← Modifier les presets</a>
+    <h1>{{ persona.first_name }} <span class="muted" style="font-weight:400;">— preview</span></h1>
+    <p class="sub">
+      <strong>{{ persona.gender|capitalize }}</strong> · {{ persona.age }} ans
+      · <span class="pill">Avatar {{ persona.avatar_id_primary }} — {{ avatar_primary.name if avatar_primary else '?' }}</span>
+      {% if avatar_secondary %}<span class="muted text-xs">+ secondaire {{ avatar_secondary.id }} — {{ avatar_secondary.name }}</span>{% endif %}
+    </p>
+    <p class="sub" style="margin-top:6px;">
+      Vérifie la voix sur les 3 tweets ci-dessous. Si elle ne te plaît pas, régénère.
+      Les tweets de preview ne sont PAS sauvegardés — seule la persona l'est si tu cliques "Sauvegarder".
+    </p>
+  </div>
+</header>
+
+{# ───── Persona summary ───── #}
+<section class="card mb-lg">
+  <h3 class="card-title">Identité générée</h3>
+
+  <div class="grid grid-2" style="gap:18px;">
+    <div>
+      <div class="label-mini">Bio Twitter</div>
+      <div class="text-block italic-serif">{{ persona.bio_twitter or '—' }}</div>
+    </div>
+    <div>
+      <div class="label-mini">Vocabulaire signature ({{ (persona.vocabulary_yes or [])|length }})</div>
+      <div class="vocab-list">
+        {% for w in persona.vocabulary_yes or [] %}
+          <span class="vocab-pill yes">{{ w }}</span>
+        {% endfor %}
+        {% if not persona.vocabulary_yes %}<span class="muted">—</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:18px;">
+    <div class="label-mini">Backstory</div>
+    <div class="text-block">{{ persona.backstory or '—' }}</div>
+  </div>
+
+  <div style="margin-top:18px;">
+    <div class="label-mini">Signature de voix</div>
+    <div class="text-block" style="white-space:pre-wrap;">{{ persona.voice_signature or '—' }}</div>
+  </div>
+
+  <div class="grid grid-2" style="gap:18px; margin-top:18px;">
+    <div>
+      <div class="label-mini">Vocabulaire banni ({{ (persona.vocabulary_no or [])|length }})</div>
+      <div class="vocab-list">
+        {% for w in persona.vocabulary_no or [] %}
+          <span class="vocab-pill no">{{ w }}</span>
+        {% endfor %}
+        {% if not persona.vocabulary_no %}<span class="muted">—</span>{% endif %}
+      </div>
+    </div>
+    <div>
+      <div class="label-mini">Prompts visuels (auto-générés)</div>
+      <details>
+        <summary class="muted text-xs" style="cursor:pointer;">Photo de profil ({{ (persona.profile_photo_prompt or '')|length }} chars)</summary>
+        <div class="text-block text-xs" style="margin-top:6px;">{{ persona.profile_photo_prompt or '—' }}</div>
+      </details>
+      <details style="margin-top:8px;">
+        <summary class="muted text-xs" style="cursor:pointer;">Bannière ({{ (persona.banner_prompt or '')|length }} chars)</summary>
+        <div class="text-block text-xs" style="margin-top:6px;">{{ persona.banner_prompt or '—' }}</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+{# ───── Preview tweets ───── #}
+<section class="card mb-lg">
+  <h3 class="card-title">Tweets de preview</h3>
+  <p class="card-sub" style="margin-bottom:14px;">
+    Ces 3 tweets démontrent la voix générée. Ils ne sont PAS sauvegardés.
+  </p>
+
+  <div class="tweet-preview">
+    <div class="tweet-tag">Tweet isolé</div>
+    <div class="tweet-content">{{ previews.isolated or '(non généré)' }}</div>
+    <div class="tweet-meta">{{ (previews.isolated or '')|length }} chars</div>
+  </div>
+
+  <div class="tweet-preview">
+    <div class="tweet-tag">Thread ({{ previews.thread|length }} tweets)</div>
+    {% for t in previews.thread or [] %}
+      <div class="tweet-content tweet-thread-item">
+        <span class="tweet-thread-pos">T{{ loop.index }}</span>
+        {{ t }}
+      </div>
+      <div class="tweet-meta">{{ t|length }} chars</div>
+    {% endfor %}
+    {% if not previews.thread %}<div class="muted">(non généré)</div>{% endif %}
+  </div>
+
+  <div class="tweet-preview">
+    <div class="tweet-tag">Quote-trigger (thèse incarnée clivante)</div>
+    <div class="tweet-content">{{ previews.quote_trigger or '(non généré)' }}</div>
+    <div class="tweet-meta">{{ (previews.quote_trigger or '')|length }} chars</div>
+  </div>
+</section>
+
+{# ───── Actions ───── #}
+<section class="row" style="justify-content:space-between; align-items:center; gap:14px;">
+  <a href="{{ url_for('personas.index') }}" class="btn btn-ghost">Annuler</a>
+
+  <div class="row" style="gap:10px;">
+    {# Régénérer = re-poster les inputs originaux vers /new/generate (mêmes presets). #}
+    <form method="post" action="{{ url_for('personas.new_generate') }}" style="margin:0;">
+      <input type="hidden" name="gender" value="{{ inputs.gender }}">
+      <input type="hidden" name="age" value="{{ inputs.age }}">
+      <input type="hidden" name="avatar_id_primary" value="{{ inputs.avatar_id_primary }}">
+      {% if inputs.avatar_id_secondary %}<input type="hidden" name="avatar_id_secondary" value="{{ inputs.avatar_id_secondary }}">{% endif %}
+      <input type="hidden" name="first_name_hint" value="{{ inputs.first_name_hint or '' }}">
+      <input type="hidden" name="notes" value="{{ inputs.notes or '' }}">
+      <input type="hidden" name="model" value="{{ inputs.model }}">
+      <button type="submit" class="btn btn-ghost" title="Re-générer avec les mêmes presets">⟳ Régénérer</button>
+    </form>
+
+    <form method="post" action="{{ url_for('personas.new_save') }}" style="margin:0;">
+      <input type="hidden" name="draft_payload" value="{{ draft_payload|e }}">
+      <button type="submit" class="btn btn-primary">Sauvegarder cette persona →</button>
+    </form>
+  </div>
+</section>
+
+{% if usage %}
+<div class="muted text-xs" style="margin-top:18px; text-align:right;">
+  Génération : ${{ "%.4f"|format(usage.get('cost_usd_estimate', 0)) }} ·
+  in {{ usage.get('input_tokens', 0) }} (cached {{ usage.get('cached_tokens', 0) }}) · out {{ usage.get('output_tokens', 0) }}
+</div>
+{% endif %}
+
+<style>
+  .label-mini {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted-soft, #888);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .text-block {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink, #2a2a2a);
+  }
+  .vocab-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .vocab-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .vocab-pill.yes {
+    background: rgba(70, 130, 70, 0.1);
+    color: #2d5a2d;
+    border: 1px solid rgba(70, 130, 70, 0.25);
+  }
+  .vocab-pill.no {
+    background: rgba(180, 35, 35, 0.08);
+    color: #8a1a1a;
+    border: 1px solid rgba(180, 35, 35, 0.2);
+    text-decoration: line-through;
+  }
+  .tweet-preview {
+    border: 1px solid var(--hairline-strong, #e0e0e0);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    background: rgba(0, 0, 0, 0.015);
+  }
+  .tweet-tag {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--burgundy, #6a0f1a);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .tweet-content {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--ink, #2a2a2a);
+    white-space: pre-wrap;
+  }
+  .tweet-thread-item {
+    border-top: 1px dashed var(--hairline, #eee);
+    padding-top: 8px;
+    margin-top: 8px;
+  }
+  .tweet-thread-item:first-of-type {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
+  .tweet-thread-pos {
+    display: inline-block;
+    background: var(--burgundy, #6a0f1a);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-right: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    vertical-align: middle;
+  }
+  .tweet-meta {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--muted-soft, #999);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .btn {
+    padding: 9px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+  }
+  .btn-primary {
+    background: var(--burgundy, #6a0f1a);
+    color: white;
+  }
+  .btn-primary:hover { background: #4a0a12; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink, #333);
+    border-color: var(--hairline-strong, #ccc);
+  }
+  .btn-ghost:hover { background: rgba(0,0,0,0.04); }
+</style>
+
+{% endblock %}

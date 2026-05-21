@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Créer une persona · Cockpit Compaatible{% endblock %}
+{% block crumb %}Personas · Créer{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <a href="{{ url_for('personas.index') }}" class="text-xs muted"
+       style="display:inline-block; margin-bottom:8px; text-decoration:none;">← Annuler et revenir aux personas</a>
+    <h1>Créer une persona manuellement</h1>
+    <p class="sub">
+      Pas de CSV source : tu choisis le genre, l'âge et un avatar Compaatible.
+      La voix est inventée par le LLM à partir de la fiche avatar et de tes notes.
+      Tu vois 3 tweets de preview avant de sauvegarder.
+    </p>
+  </div>
+</header>
+
+<form method="post" action="{{ url_for('personas.new_generate') }}" class="stack stack-lg" style="max-width:760px;">
+
+  <section class="card">
+    <h3 class="card-title">Identité de base</h3>
+    <div class="grid grid-2" style="gap:16px;">
+
+      <div class="field">
+        <label class="field-label">Genre <span style="color:#b42323;">*</span></label>
+        <div class="radio-row" style="display:flex; gap:14px; padding-top:6px;">
+          <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="radio" name="gender" value="femme" checked> Femme
+          </label>
+          <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="radio" name="gender" value="homme"> Homme
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="age">Âge <span style="color:#b42323;">*</span></label>
+        <input type="number" name="age" id="age" class="input" min="18" max="70" value="28" required>
+        <p class="field-help">Entre 18 et 70 ans. Conseillé : 22-50.</p>
+      </div>
+
+      <div class="field" style="grid-column: 1 / -1;">
+        <label class="field-label" for="first_name_hint">Prénom souhaité (optionnel)</label>
+        <input type="text" name="first_name_hint" id="first_name_hint" class="input" placeholder="Laisse vide pour que le LLM choisisse">
+        <p class="field-help">Si imposé, le système gère l'unicité par suffixe (-2, -3...) en cas de doublon.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3 class="card-title">Avatar Compaatible</h3>
+    <div class="card-sub" style="margin-bottom:14px;">
+      L'avatar définit la psychologie de la persona : peurs, rapport aux apps de dating, ce qui la fait réagir.
+      La voix générée sera cohérente avec cet avatar.
+    </div>
+    <div class="grid grid-2" style="gap:16px;">
+      <div class="field">
+        <label class="field-label" for="avatar_id_primary">Avatar primaire <span style="color:#b42323;">*</span></label>
+        <select name="avatar_id_primary" id="avatar_id_primary" class="select" required>
+          <option value="">— Choisir un avatar —</option>
+          {% for a in avatars %}
+          <option value="{{ a.id }}">{{ a.id }}. {{ a.name }}{% if a.summary %} — {{ a.summary }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="avatar_id_secondary">Avatar secondaire (optionnel)</label>
+        <select name="avatar_id_secondary" id="avatar_id_secondary" class="select">
+          <option value="">— Aucun —</option>
+          {% for a in avatars %}
+          <option value="{{ a.id }}">{{ a.id }}. {{ a.name }}{% if a.summary %} — {{ a.summary }}{% endif %}</option>
+          {% endfor %}
+        </select>
+        <p class="field-help">Nuance la voix avec un second avatar (différent du primaire).</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3 class="card-title">Notes additionnelles (optionnel)</h3>
+    <div class="field">
+      <textarea name="notes" rows="4" class="input" placeholder="Ex : elle vit à Marseille, milieu de l'édition, parents divorcés à 12 ans, lit de la poésie..."></textarea>
+      <p class="field-help">Indices libres que le LLM intégrera à la backstory et à la voix. Plus tu donnes de contexte, plus la persona sera singulière.</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3 class="card-title">Modèle LLM</h3>
+    <div class="field">
+      <select name="model" class="select" required>
+        {% for m in models %}
+        <option value="{{ m.id }}" {% if m.id == default_model %}selected{% endif %}>{{ m.label }}</option>
+        {% endfor %}
+      </select>
+      <p class="field-help">Un seul appel API : persona + 3 tweets preview en une fois. Sonnet par défaut.</p>
+    </div>
+  </section>
+
+  <div class="row" style="justify-content:flex-end; gap:12px;">
+    <a href="{{ url_for('personas.index') }}" class="btn btn-ghost">Annuler</a>
+    <button type="submit" class="btn btn-primary">Générer la persona →</button>
+  </div>
+</form>
+
+<style>
+  .input, .select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--hairline-strong, #ccc);
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+  }
+  .input:focus, .select:focus {
+    outline: none;
+    border-color: var(--burgundy, #6a0f1a);
+  }
+  .field-help {
+    font-size: 12px;
+    color: var(--muted-soft, #888);
+    margin-top: 4px;
+  }
+  .field-label {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    display: block;
+  }
+  .btn {
+    padding: 9px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+  }
+  .btn-primary {
+    background: var(--burgundy, #6a0f1a);
+    color: white;
+  }
+  .btn-primary:hover { background: #4a0a12; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink, #333);
+    border-color: var(--hairline-strong, #ccc);
+  }
+  .btn-ghost:hover { background: rgba(0,0,0,0.04); }
+</style>
+
+{% endblock %}
