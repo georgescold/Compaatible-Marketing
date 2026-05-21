@@ -1635,20 +1635,45 @@ def get_tweets_for_run(run_id: int) -> list[dict]:
 
     1. Tweets originaux (extension_idx IS NULL) en premier
     2. Puis extension #1, puis extension #2, etc.
-    3. À l'intérieur de chaque bucket : par thread_key, thread_order, id
+    3. À l'intérieur de chaque bucket : ordre chronologique d'INSERTION
+       (id), avec les membres d'un même thread regroupés adjacents au
+       niveau de leur premier membre.
 
-    Le CSV Cortex hérite naturellement de cet ordre. extension_idx n'est PAS
-    exporté dans le CSV (champ interne) ; pour Cortex c'est juste une suite
-    continue de tweets.
+    Effet : les threads sont distribués naturellement dans le run (pas tous
+    relégués à la fin par tri alphabétique sur thread_key), tout en restant
+    lisibles d'un coup (T1, T2, T3 consécutifs dans l'ordre).
+
+    Mécanique du tri : on calcule `group_order_id` = MIN(id) du thread pour
+    les tweets en thread, ou l'id du tweet lui-même pour les isolés. Ça
+    « ancre » chaque thread à la position de son premier membre dans le run.
+    `thread_order` ensuite garantit T1 < T2 < T3.
+
+    extension_idx n'est PAS exporté dans le CSV (champ interne) ; pour Cortex
+    c'est juste une suite continue de tweets — Cortex regroupe les threads par
+    thread_key côté moteur, donc l'ordre du CSV n'a pas d'importance pour lui.
     """
     with db.cursor() as cur:
         cur.execute(
-            "SELECT * FROM mkt_tweets WHERE csv_run_id = %s "
-            "ORDER BY extension_idx NULLS FIRST, "
-            "COALESCE(thread_key, ''), COALESCE(thread_order, 0), id",
+            """
+            SELECT
+              *,
+              CASE
+                WHEN thread_key IS NULL THEN id
+                ELSE MIN(id) OVER (PARTITION BY thread_key)
+              END AS group_order_id
+            FROM mkt_tweets
+            WHERE csv_run_id = %s
+            ORDER BY
+              extension_idx NULLS FIRST,
+              group_order_id,
+              COALESCE(thread_order, 0),
+              id
+            """,
             (run_id,),
         )
-        return [dict(r) for r in cur.fetchall()]
+        rows = cur.fetchall()
+    # Strip the helper column avant retour (le caller n'a pas à le voir).
+    return [{k: v for k, v in r.items() if k != "group_order_id"} for r in rows]
 
 
 def update_tweet(tweet_id: int, **fields) -> None:
