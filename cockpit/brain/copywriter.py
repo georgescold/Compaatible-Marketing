@@ -703,13 +703,26 @@ def generate_extension(
     # run 56 Thaïs : cible 14% par chunk → ratio global observé 23%). On calcule la
     # cible totale ici, et avant chaque chunk on recompute le budget restant à partir
     # de ce qui a déjà été mentionné. Si on est en avance, le chunk suivant baisse
-    # son plafond. Cible totale = target_messages * target_ratio observé.
+    # son plafond.
+    #
+    # Cible = target_messages * ratio_clampé. Le ratio brut de la persona (observé sur
+    # ses originaux) est CLAMPÉ dans la fourchette doctrine [10%, 15%] :
+    #   - observé < 10% → cible 10% (plancher doctrine)
+    #   - observé > 15% → cible 15% (plafond doctrine)
+    #   - sinon → cible = observé
     extension_mention_target_total: int | None = None
     if mention_stats and mention_stats.get("ratio") is not None:
-        extension_mention_target_total = max(0, round(target_messages * mention_stats["ratio"]))
+        observed = mention_stats["ratio"]
+        clamped = max(0.10, min(0.15, observed))
+        extension_mention_target_total = max(0, round(target_messages * clamped))
+        clamp_note = ""
+        if observed < 0.10:
+            clamp_note = f" (observé {observed*100:.1f}% < 10% → remonté au plancher doctrine)"
+        elif observed > 0.15:
+            clamp_note = f" (observé {observed*100:.1f}% > 15% → ramené au plafond doctrine)"
         _log(
             f"extension · budget mentions Compaatible · cible globale {extension_mention_target_total} "
-            f"sur ~{target_messages} messages (ratio cible {mention_stats['ratio']*100:.1f}% des originaux)"
+            f"sur ~{target_messages} messages (ratio cible {clamped*100:.1f}%){clamp_note}"
         )
 
     for chunk_idx in range(start_chunk_idx, total_chunks):
@@ -1101,7 +1114,11 @@ def _process_extension_chunk(
     # produirait sinon le cumul des plafonds per-chunk (run 56 Thaïs : cumul à
     # 23% alors que ratio originaux 14%).
     if mention_stats and mention_stats.get("ratio") is not None:
-        target_ratio = mention_stats["ratio"]
+        # Ratio observé sur les originaux, CLAMPÉ dans la fourchette doctrine [10%, 15%]
+        # Le ratio brut peut être en dessous (persona qui sous-mentionne) ou au-dessus
+        # (Thaïs qui dérive à 23%). On le ramène toujours dans le band 10-15.
+        observed_ratio = mention_stats["ratio"]
+        target_ratio = max(0.10, min(0.15, observed_ratio))
         natural_count = round(chunk_count * target_ratio)
         # Plafond per-chunk avec un peu de flex au-dessus du naturel
         per_chunk_cap = max(natural_count + 1, 2)
@@ -1120,31 +1137,44 @@ def _process_extension_chunk(
             effective_cap = per_chunk_cap
             budget_note = ""
 
+        clamp_info = ""
+        if observed_ratio < 0.10:
+            clamp_info = (
+                f" (le ratio observé {observed_ratio*100:.1f}% est en dessous du plancher "
+                "doctrine 10% → on remonte la cible au plancher pour ce run)"
+            )
+        elif observed_ratio > 0.15:
+            clamp_info = (
+                f" (le ratio observé {observed_ratio*100:.1f}% est au-dessus du plafond "
+                "doctrine 15% → on ramène la cible au plafond pour ce run)"
+            )
         mention_target_text = (
-            "\n\n## PLAFOND MENTIONS COMPAATIBLE — strictement adaptatif, jamais forcé\n\n"
+            "\n\n## CIBLE MENTIONS COMPAATIBLE — fourchette doctrine 10-15%\n\n"
             f"Sur les **{mention_stats['total']} tweets originaux** de cette persona, "
-            f"**{mention_stats['named']} nomment Compaatible** ({target_ratio*100:.1f}%). "
-            "C'est ce que produit cette persona QUAND la matière s'y prête — pas un quota "
-            "à atteindre.\n\n"
+            f"**{mention_stats['named']} nomment Compaatible** ({observed_ratio*100:.1f}%).\n"
+            f"**Cible pour ce run : {target_ratio*100:.1f}%**{clamp_info}.\n\n"
             "**Règle absolue : tu ne mentionnes Compaatible que si le tweet s'y prête "
-            "naturellement.** Aucun chunk n'a de quota minimal. **0 mention sur ce chunk "
-            "est un résultat parfaitement valide** si aucun tweet ne s'y prête — c'est "
-            "souvent le bon choix par défaut.\n\n"
+            "naturellement.** Aucun chunk n'a de quota minimal rigide. **0 mention sur ce "
+            "chunk est valide** si aucun tweet ne s'y prête — ça se rattrapera sur les chunks "
+            "suivants pour atteindre la fourchette 10-15% sur le run complet.\n\n"
             f"**Plafond DUR sur ce chunk : {effective_cap} mention(s) maximum.** "
             "Au-delà, tu forces des pivots qui ne tiennent pas naturellement — donc tu "
             "sors hors voix. Ce plafond est calculé pour que sur l'ensemble du run "
-            "d'extension le ratio global reste proche du ratio observé sur les "
-            "originaux ; si chaque chunk pousse au plafond, le ratio global explose "
-            "au-dessus de la signature de la persona."
+            "d'extension le ratio global reste dans la fourchette 10-15% (doctrine "
+            "Compaatible mention floor + ceiling)."
             f"{budget_note}"
         )
     else:
         mention_target_text = (
-            "\n\n## PLAFOND MENTIONS COMPAATIBLE — strictement adaptatif\n\n"
+            "\n\n## CIBLE MENTIONS COMPAATIBLE — fourchette 10-15%, adaptative\n\n"
             "Pas assez de tweets originaux pour calculer un ratio spécifique à la persona. "
-            "Doctrine par défaut : tu mentionnes Compaatible UNIQUEMENT si le tweet s'y "
-            "prête naturellement, jamais par quota. **Plafond strict : 10% des tweets du "
-            "chunk maximum.** 0 mention est parfaitement valide si rien ne s'y prête."
+            "**Doctrine par défaut : vise une fourchette de 10 à 15 % de mentions Compaatible "
+            "sur le run complet** (cible 12% au milieu de la fourchette). Plafond strict 15% "
+            "sur ce chunk individuel — au-delà, tu satures et tu fais de la pub. Plancher 10% "
+            "sur le RUN entier, pas obligatoire sur ce chunk : si rien dans les sources de "
+            "ce chunk ne se prête naturellement, sors à 0 mention, ça se rattrapera sur les "
+            "chunks suivants. Mention uniquement quand le tweet la justifie naturellement — "
+            "jamais forcée."
         )
 
     # Cibles stylistiques (threads vs isoles, densite image) calees sur les
@@ -1911,7 +1941,7 @@ def _audit_compaatible_mentions(rows: list[dict], csv_run_id: int | None = None)
     """Log le ratio de tweets nommant 'Compaatible' et signale les violations de forme.
 
     Audite trois choses :
-    - **Ratio cumulé sur le run** (vrai garde-fou) : plancher 5%, plafond 15%.
+    - **Ratio cumulé sur le run** (vrai garde-fou) : plancher 10%, plafond 15%.
       Les mentions URL-only (`compaatible.com/...`) ne sont PAS comptées.
     - **Forme** : mention toujours en T2+ d'un thread (jamais T1, jamais isole).
     - **Position dans le chunk** : pas de grappe dans les 3 derniers tweets, pas
@@ -1956,9 +1986,9 @@ def _audit_compaatible_mentions(rows: list[dict], csv_run_id: int | None = None)
         f"{n_in_t1} en T1 d'un thread, {n_in_isolated} en tweet isole · "
         f"cumul run {cumul_named}/{cumul_total} ({cumul_ratio*100:.1f}%)"
     )
-    if cumul_total >= 20 and cumul_ratio < 0.05:
+    if cumul_total >= 20 and cumul_ratio < 0.10:
         _log(
-            f"compaatible INFO · ratio cumulé {cumul_ratio*100:.1f}% < 5% sur le run · "
+            f"compaatible INFO · ratio cumulé {cumul_ratio*100:.1f}% < 10% sur le run · "
             "plancher non atteint, le modèle sous-place les mentions"
         )
     if cumul_ratio > 0.15:
