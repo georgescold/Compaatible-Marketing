@@ -93,6 +93,157 @@
   </div>
 </section>
 
+{# ───────── Générer un run de tweets ───────── #}
+<section class="card mb-lg">
+  <h3 class="card-title">Générer un run de tweets</h3>
+  <p class="muted text-xs" style="margin-top:-4px; margin-bottom:14px;">
+    Lance une génération de N posts dans la voix de {{ persona.first_name }} en s'appuyant sur sa
+    fiche avatar, sa voice_signature et son vocabulaire. Aucun CSV source requis.
+    Les tweets seront exportables au format Cortex dès que le run sera terminé.
+  </p>
+  <form method="post" action="{{ url_for('personas.generate_for_persona', persona_id=persona.id) }}" id="manual-gen-form" class="stack stack-sm">
+    <div class="grid grid-3" style="gap:14px;">
+      <div class="field">
+        <label class="field-label" for="gen-count">Nombre de posts</label>
+        <input type="number" name="count" id="gen-count" class="input" min="1" max="2000" value="50" required>
+        <p class="field-help">1 post = 1 thread OU 1 tweet isolé.</p>
+      </div>
+      <div class="field">
+        <label class="field-label" for="gen-model">Modèle LLM</label>
+        <select name="model" id="gen-model" class="select" required>
+          {% for m in models %}
+          <option value="{{ m.id }}"
+                  data-first="{{ cost_by_model[m.id].copy_first_chunk_usd }}"
+                  data-later="{{ cost_by_model[m.id].copy_subsequent_chunk_usd }}"
+                  data-priced="{{ '1' if cost_by_model[m.id].pricing_available else '0' }}"
+                  {% if m.id == default_model %}selected{% endif %}>{{ m.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field" style="display:flex; align-items:center; padding-top:18px;">
+        <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-size:13.5px;">
+          <input type="checkbox" name="auto_match_images" value="1">
+          Matcher automatiquement des images à la fin
+        </label>
+      </div>
+    </div>
+
+    <div class="gen-cost-card" id="gen-cost-card">
+      <div class="cost-row">
+        <div class="cost-label">Coût estimé pour ce run</div>
+        <div class="cost-amount" id="gen-cost-total">—</div>
+      </div>
+      <div class="cost-row cost-row-secondary">
+        <div class="cost-label">
+          <span id="gen-cost-detail">— chunks</span>
+        </div>
+        <div class="cost-amount muted" id="gen-cost-breakdown">—</div>
+      </div>
+      <div class="cost-help muted text-xs" id="gen-cost-unpriced" style="display:none;">
+        Pas de grille de prix pour ce modèle — estimation indicative seulement.
+      </div>
+    </div>
+
+    <div class="row" style="justify-content:flex-end; margin-top:8px;">
+      <button type="submit" class="btn primary">Lancer le run →</button>
+    </div>
+  </form>
+</section>
+
+<style>
+  .gen-cost-card {
+    margin-top: 8px;
+    padding: 11px 14px;
+    background: rgba(106, 15, 26, 0.04);
+    border: 1px solid rgba(106, 15, 26, 0.15);
+    border-radius: 6px;
+  }
+  .gen-cost-card .cost-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .gen-cost-card .cost-row-secondary {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(106, 15, 26, 0.15);
+  }
+  .gen-cost-card .cost-label {
+    font-size: 13px;
+    color: var(--ink, #2a2a2a);
+  }
+  .gen-cost-card .cost-row-secondary .cost-label {
+    font-size: 11.5px;
+    color: var(--muted-soft, #888);
+  }
+  .gen-cost-card .cost-amount {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 17px;
+    color: var(--burgundy, #6a0f1a);
+  }
+  .gen-cost-card .cost-row-secondary .cost-amount {
+    font-size: 13.5px;
+    font-weight: 500;
+  }
+  .gen-cost-card .cost-help {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(106, 15, 26, 0.15);
+    line-height: 1.4;
+  }
+  #manual-gen-form .input, #manual-gen-form .select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--hairline-strong, #ccc);
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+    font-family: inherit;
+  }
+  #manual-gen-form .input:focus, #manual-gen-form .select:focus {
+    outline: none;
+    border-color: var(--burgundy, #6a0f1a);
+  }
+</style>
+
+<script>
+(function() {
+  // Recalcul du coût dynamique : count × (first_chunk + (chunks-1)*later)
+  // avec chunks = ceil(count / 20).
+  const form = document.getElementById('manual-gen-form');
+  const countInput = document.getElementById('gen-count');
+  const modelSelect = document.getElementById('gen-model');
+  const totalEl = document.getElementById('gen-cost-total');
+  const detailEl = document.getElementById('gen-cost-detail');
+  const breakdownEl = document.getElementById('gen-cost-breakdown');
+  const unpricedEl = document.getElementById('gen-cost-unpriced');
+  if (!form || !countInput || !modelSelect) return;
+
+  function fmtUsd(n) {
+    if (isNaN(n)) return '—';
+    return n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(3)}`;
+  }
+  function update() {
+    const count = parseInt(countInput.value, 10) || 0;
+    const chunks = Math.max(1, Math.ceil(count / 20));
+    const opt = modelSelect.selectedOptions[0];
+    if (!opt) return;
+    const first = parseFloat(opt.dataset.first) || 0;
+    const later = parseFloat(opt.dataset.later) || 0;
+    const total = first + Math.max(0, chunks - 1) * later;
+    totalEl.textContent = fmtUsd(total);
+    detailEl.textContent = `${chunks} chunk${chunks > 1 ? 's' : ''} · ${count} posts demandés`;
+    breakdownEl.textContent = `1er ${fmtUsd(first)} + ${chunks - 1} × ${fmtUsd(later)}`;
+    unpricedEl.style.display = opt.dataset.priced === '1' ? 'none' : 'block';
+  }
+  countInput.addEventListener('input', update);
+  modelSelect.addEventListener('change', update);
+  update();
+})();
+</script>
+
 {# ───────── Identité ───────── #}
 <section class="card mb-lg">
   <h3 class="card-title">Identité</h3>

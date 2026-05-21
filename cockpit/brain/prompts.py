@@ -216,6 +216,88 @@ def build_blocks_for_copywriting(language: str = "fr") -> list[dict[str, Any]]:
         },
         {
             "type": "text",
+            "text": (
+                "## EFFETS EN CASCADE — pense aux bénéfices de second ordre\n\n"
+                "Un produit qui résout un problème racine résout aussi, **par conséquence**, une "
+                "série de problèmes secondaires que produit ce problème racine. Quand tu écris "
+                "un tweet ou un thread, **tu n'es pas obligé d'attaquer uniquement le problème "
+                "racine** — tu peux entrer par n'importe quel point de la cascade.\n\n"
+                "### Le principe\n\n"
+                "Un problème racine non résolu se ramifie en symptômes apparents qui semblent "
+                "indépendants au lecteur. Ces symptômes peuvent être physiques, émotionnels, "
+                "sociaux, professionnels, comportementaux. Le lecteur peut **se reconnaître dans "
+                "un symptôme sans encore avoir identifié la racine**. Le copy qui le capte par "
+                "ce symptôme et lui révèle la racine fait deux choses puissantes en même temps :\n"
+                "- il valide ce qu'il vit (« je suis vu·e ») ;\n"
+                "- il lui donne une grille de lecture qui rend la solution évidente.\n\n"
+                "### Comment l'appliquer concrètement\n\n"
+                "Avant d'écrire un tweet ou un thread, pose-toi mentalement la question :\n\n"
+                "**« Quel est le problème racine ici, et quels effets en cascade ce problème "
+                "produit-il dans la vie de cette persona précise ? »**\n\n"
+                "Tu déduis ces effets en cascade en croisant :\n"
+                "1. **L'avatar visé** : ses peurs profondes, ses douleurs documentées dans sa "
+                "fiche — chacune est une porte d'entrée alternative.\n"
+                "2. **La voix de la persona** : ce qu'elle observe naturellement, son champ "
+                "lexical (corps, énergie, sommeil, vie sociale, travail, finances, créativité, "
+                "rapport au temps, à l'avenir…). Si elle parle de corps, les cascades corporelles "
+                "sont crédibles. Si elle parle de travail, les cascades professionnelles le sont.\n"
+                "3. **Le mécanisme du playbook source** : certains comptes sources excellent "
+                "déjà sur certains types de cascades — repère lesquelles et continue dans cette "
+                "veine quand c'est cohérent.\n\n"
+                "### Familles de cascades à explorer (palette, pas checklist)\n\n"
+                "Selon la persona, ces familles s'activent ou non. Ne plaque pas, déduis :\n"
+                "- **Corps / santé physique** : sommeil, peau, digestion, énergie, libido, "
+                "tensions, somatisation.\n"
+                "- **État émotionnel quotidien** : anxiété de fond, irritabilité, tristesse "
+                "diffuse, rumination, hypervigilance.\n"
+                "- **Confiance en soi / image de soi** : doute, dévalorisation, sentiment "
+                "d'imposture, comparaison sociale.\n"
+                "- **Vie sociale** : retrait, isolement, conversations qui sonnent creux, "
+                "rapports tendus avec l'entourage.\n"
+                "- **Vie pro / productivité** : concentration, motivation, capacité à se "
+                "projeter, sentiment d'aller nulle part.\n"
+                "- **Rapport au temps / à l'avenir** : impression de stagner, peur du futur, "
+                "sentiment d'urgence ou au contraire de paralysie.\n"
+                "- **Rapport aux autres relations** : amitiés négligées, famille distante, "
+                "schémas répétés avec d'autres personnes.\n"
+                "- **Identité / sens** : qui je suis vraiment, ce que je veux, comment je veux "
+                "vivre ma vingtaine/trentaine/quarantaine.\n\n"
+                "Cette liste n'est pas exhaustive. D'autres cascades existent (financières, "
+                "créatives, esthétiques, sexuelles…) — active celles qui collent à la voix.\n\n"
+                "### Pourquoi c'est stratégique\n\n"
+                "Le funnel marketing classique attaque la racine et touche les personnes qui se "
+                "reconnaissent déjà comme ayant ce problème. Mais la grande majorité des "
+                "lecteurs **n'ont pas encore connecté les points**. Ils vivent les symptômes "
+                "sans en attribuer la cause à la racine. Un tweet qui entre par un symptôme "
+                "précis (« tu dors mal depuis combien de mois ? ») capte une audience que le "
+                "tweet racine (« tu es célibataire ? ») n'aurait jamais touchée. Et une fois "
+                "qu'elle est captée, tu lui révèles la racine — la connexion qu'elle n'avait "
+                "pas faite — et le produit devient évident.\n\n"
+                "### Anti-patterns\n\n"
+                "- **Cascade forcée** : si la voix de la persona ne touche jamais au corps, "
+                "n'écris pas « tu vas glow up ». La cascade doit être cohérente avec ce dont "
+                "la persona parle naturellement.\n"
+                "- **Cascade trop générique** (« tu seras plus heureux ») : ne capte personne. "
+                "Plus la cascade est précise, sensorielle, datée, vécue, plus elle accroche.\n"
+                "- **Empiler les cascades dans un seul tweet** : un tweet = une cascade max, "
+                "sinon on dilue. Un thread peut en évoquer 2-3 si elles s'enchaînent "
+                "narrativement (T1 symptôme → T2 racine → T3 autres cascades qui tombent avec).\n"
+                "- **Mention Compaatible quand la cascade fait déjà tout le boulot** : si le "
+                "tweet décrit puissamment un symptôme + sa racine, la mention produit est "
+                "souvent superflue. Garde-la pour les tweets où le pivot vers la solution "
+                "ajoute vraiment quelque chose.\n\n"
+                "### Quand l'utiliser, quand l'ignorer\n\n"
+                "Pas tous les tweets passent par cette mécanique. Les confessions intimes, les "
+                "scènes vécues, les questions ouvertes, les observations poétiques vivent par "
+                "eux-mêmes sans avoir besoin de tracer une cascade. **L'effet en cascade est "
+                "un OUTIL parmi d'autres**, pas le moule à plaquer sur tout. Tu l'utilises "
+                "quand la matière s'y prête — quand un symptôme précis évoque une racine "
+                "précise, et que cette connexion vaut le coup d'être révélée."
+            ),
+            "cache_control": {"type": "ephemeral"},
+        },
+        {
+            "type": "text",
             "text": blog_block_text,
             "cache_control": {"type": "ephemeral"},
         },
@@ -492,9 +574,11 @@ def build_system_for_manual_persona() -> list[dict[str, Any]]:
     - Le LLM peut créer des personas hommes OU femmes (vs femme-only sinon).
     - Produit la persona + 3 tweets preview en un seul appel (isolé, thread, quote-trigger).
     """
+    # build_blocks_for_copywriting est un SUR-ENSEMBLE de build_blocks_for_persona
+    # (brief produit + avatars sont déjà dedans). On évite la duplication pour rester
+    # ≤ 4 cache breakpoints comme exigé par l'API Anthropic.
     return [
         build_role_block(),
-        *build_blocks_for_persona(),
         *build_blocks_for_copywriting(language="fr"),
         {
             "type": "text",
@@ -513,23 +597,75 @@ def build_system_for_manual_persona() -> list[dict[str, Any]]:
                 "quel (le système gère l'unicité par suffixe au besoin).\n"
                 "- **Cohérence interne forte** : prénom × âge × backstory × voix × vocabulaire = "
                 "un tout. Pas de personnage assemblé en pièces détachées.\n"
-                "- **Voix dense et incarnée** : voir la SECTION DÉDIÉE LE CHAMP `voice_signature` "
-                "déjà consignée plus haut. Comme tu n'observes pas de tweets sources, tu DOIS "
-                "inventer ces tics — mais ils doivent rester crédibles pour cette personne précise.\n"
                 "- **Mention Compaatible interdite dans la bio.**\n\n"
+                "## DOCTRINE OBLIGATOIRE — PERSONA CLIVANTE ET QUOTE-TRIGGER DE NATURE\n\n"
+                "**Toute persona créée manuellement DOIT être clivante de nature** : elle doit "
+                "pouvoir poser des thèses tranchantes, refuser les consolations molles, dire la "
+                "vérité inconfortable que la plupart des gens contournent. Ce n'est pas qu'elle "
+                "est agressive — c'est qu'elle TRANCHE sur les sujets relationnels au lieu de se "
+                "contenter d'observations consensuelles.\n\n"
+                "Concrètement, sa voix doit pouvoir produire spontanément deux registres :\n"
+                "1. **Le quote-trigger** : tweets isolés qui posent UNE thèse incarnée clivante "
+                "(hook_pattern `hot_take`), pensés pour déclencher du RT cité. Elle a des "
+                "opinions tranchées qu'elle assume premier degré.\n"
+                "2. **Les threads** structurés autour de la matière de l'avatar (scènes vécues, "
+                "confessions, frameworks, démontages de mythes), avec un T1 qui crée la tension.\n\n"
+                "**Cela doit transparaître dans `voice_signature` ET `backstory`** : la persona "
+                "n'est pas une narratrice neutre, c'est quelqu'un qui POSE des choses. Lucide, "
+                "tranchant, premier degré. Elle observe ET juge. Sa pudeur ou sa douceur "
+                "éventuelle (selon les notes utilisateur) cohabite avec une lucidité qui ne "
+                "ménage personne.\n\n"
+                "## SECTION CRITIQUE — `voice_signature` doit être DENSE et OPÉRATOIRE\n\n"
+                "Le `voice_signature` est le champ le plus important. Il sera relu textuellement "
+                "par le copywriter à chaque génération future. Une voix vague ne produira que des "
+                "tweets vagues.\n\n"
+                "**Exigences minimales sur ce champ** (couvrir les 7 dimensions, avec des "
+                "exemples concrets et observables) :\n"
+                "1. **Ponctuation préférée** : nomme PRÉCISÉMENT quels signes elle/il favorise — "
+                "doubles points `..` au lieu de trois `...` ? Absence systématique de point "
+                "final ? Doubles `??` pour marquer l'incompréhension ? Tirets simples ? "
+                "Parenthèses fréquentes ? Sois opératoire, donne le pattern exact.\n"
+                "2. **Rapport aux emojis** : jamais, rares, parsemés, abondants ? Lesquels "
+                "spécifiquement (cite les emojis exacts) ? Dans quel contexte (clôture, ironie, "
+                "tendresse) ? Si rares, dis explicitement \"très peu\".\n"
+                "3. **Tournures et formules récurrentes** : pose des PATTERNS DE PHRASE, pas "
+                "des thèmes. Exemple opératoire : \"Phrases d'attaque en mode constat (« on s'aimait mais... »), "
+                "transitions par double-point pour marquer la chute, fréquence des phrases courtes "
+                "hachées en série de 3.\"\n"
+                "4. **Longueurs** : médiane chars, amplitude, mix one-liner vs développé.\n"
+                "5. **Casse et orthographe** : majuscules en début systématiques ou non ? "
+                "Apostrophes droites/typographiques ? Abréviations (jpp, tkt, mdr) ? Oublis "
+                "volontaires (\"j vais\") ? Anglicismes ?\n"
+                "6. **Posture émotionnelle** : auto-dérision, lucidité froide, tendresse, "
+                "ironie, premier degré. Le grain affectif dominant DOIT inclure une dimension "
+                "**clivante / tranchante** (doctrine ci-dessus).\n"
+                "7. **Rythmique** : phrases courtes hachées ? Longues à clauses ? Alternance ? "
+                "Listes, anaphores, énumérations frénétiques ?\n\n"
+                "**Test du `voice_signature`** : si tu remplaces le prénom et les mots-thèmes "
+                "dans une description et que ça pourrait coller à n'importe quelle persona, "
+                "c'est trop générique. Une bonne signature de voix est si spécifique qu'elle "
+                "pourrait fonctionner même sans le nom de la persona — on devine déjà qui parle.\n\n"
                 "## EN PLUS DE LA PERSONA — 3 TWEETS DE PREVIEW\n\n"
                 "Produis également 3 tweets qui démontrent la voix que tu viens de définir. "
                 "Objectif : permettre à l'utilisateur de valider visuellement la voix avant "
                 "d'enregistrer la persona.\n\n"
                 "1. **isolated** : un tweet isolé (one-liner ou observation, ≤ 280 chars). "
                 "Pas de mention Compaatible. Pure incarnation de la voix.\n\n"
-                "2. **thread** : un thread de 3 tweets (T1 hook, T2 développement avec mention "
-                "Compaatible naturelle, T3 chute). Respecte toutes les règles de threads de la "
-                "consigne système (T1 = hook, jamais Compaatible en T1, signal de continuation "
-                "fin T1, ≤ 280 chars par tweet). Le format est une liste JSON de 3 strings.\n\n"
+                "2. **thread** : un thread de 3 tweets (T1 hook, T2 développement, T3 chute). "
+                "**OBLIGATOIRE : ce thread DOIT inclure une mention nominale du mot \"Compaatible\" "
+                "en T2 OU T3 (jamais T1, jamais T1).** Le but de ce thread de preview est "
+                "précisément de montrer comment cette persona nomme l'app naturellement — pas "
+                "un thread sans mention. Le format est une liste JSON de 3 strings.\n\n"
+                "**SIGNAL DE CONTINUATION DU T1 — règle stricte** : le T1 doit se terminer par "
+                "l'un de ces signaux exacts : `...` ou `…` (suspens), `↓` ou `⬇️` (direct), `:` "
+                "(annonciateur), ou `1/3` (structuré). **Tout autre marqueur (notamment `🧵`, "
+                "`👇`, `⤵️`, etc.) est INTERDIT.** Pour `↓` et `⬇️` : pas de point final avant "
+                "la flèche (`... la suite ↓` et non `la suite. ↓`).\n\n"
                 "3. **quote_trigger** : un tweet isolé qui pose une thèse incarnée clivante "
                 "(hook_pattern hot_take), pensé pour déclencher un RT cité. Voir doctrine "
-                "quote-trigger dans la consigne système. ≤ 280 chars. Pas de mention Compaatible.\n\n"
+                "quote-trigger dans la consigne système. ≤ 280 chars. Pas de mention Compaatible. "
+                "Doit être tranchant, premier degré, viser un comportement/cadre/norme/mythe "
+                "(jamais identités ou groupes).\n\n"
                 "**Format de sortie : JSON strict, rien d'autre.**\n\n"
                 "```json\n"
                 "{\n"
@@ -542,15 +678,15 @@ def build_system_for_manual_persona() -> list[dict[str, Any]]:
                 '    "avatar_id_primary": <int 1-11 — DOIT être exactement la valeur des presets>,\n'
                 '    "avatar_id_secondary": <int 1-11 ou null — DOIT être exactement la valeur des presets>,\n'
                 '    "voice_signature": "Paragraphe dense couvrant les 7 dimensions (ponctuation, emojis, tournures, longueurs, casse, posture émotionnelle, rythmique).",\n'
-                '    "vocabulary_yes": ["<6 à 12 mots ou expressions signature spécifiques à cette persona>"],\n'
+                '    "vocabulary_yes": ["<6 à 12 mots/expressions signature — PALETTE indicative qui montre le grain de la persona, PAS un quota lexical. Ces mots ne doivent PAS apparaître dans chaque tweet>"],\n'
                 '    "vocabulary_no": ["<5 à 10 mots que cette persona ne dirait jamais>"],\n'
                 '    "profile_photo_prompt": "4 à 7 phrases denses, prêt à coller dans un générateur d\'image.",\n'
                 '    "banner_prompt": "5 à 8 phrases denses pour la bannière Twitter (1500x500, ratio 3:1)."\n'
                 "  },\n"
                 '  "previews": {\n'
-                '    "isolated": "<tweet isolé ≤ 280 chars, pas de mention Compaatible>",\n'
-                '    "thread": ["<T1 hook avec signal de continuation>", "<T2 développement + mention Compaatible naturelle>", "<T3 chute>"],\n'
-                '    "quote_trigger": "<tweet hot_take clivant ≤ 280 chars, pas de mention Compaatible>"\n'
+                '    "isolated": "<tweet isolé ≤ 280 chars, pas de mention Compaatible, dans la voix>",\n'
+                '    "thread": ["<T1 hook avec signal de continuation valide (... / … / ↓ / ⬇️ / : / 1/3)>", "<T2 développement>", "<T3 chute — OBLIGATOIREMENT le mot Compaatible apparaît en T2 OU T3>"],\n'
+                '    "quote_trigger": "<tweet hot_take clivant et tranchant ≤ 280 chars, pas de mention Compaatible, premier degré, vise comportement/norme/mythe>"\n'
                 "  }\n"
                 "}\n"
                 "```\n\n"

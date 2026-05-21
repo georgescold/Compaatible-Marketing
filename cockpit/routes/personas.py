@@ -12,7 +12,7 @@ from pathlib import Path
 
 from flask import Blueprint, render_template, redirect, url_for, flash, send_file, request
 
-from brain import pipeline, cortex_validator, avatars_catalog, persona_manual, db
+from brain import pipeline, cortex_validator, avatars_catalog, persona_manual, db, cost_estimator
 from config import Config
 
 bp = Blueprint("personas", __name__, url_prefix="/personas")
@@ -39,12 +39,29 @@ def detail(persona_id: int):
     if root_run and root_run.get("archived_csv_path"):
         source_csv_available = Path(root_run["archived_csv_path"]).exists()
 
+    # Pour le bloc "Générer des tweets" : modèles dispo + coût estimé par modèle
+    settings = db.get_settings()
+    default_model = settings.get("model_adaptation") or "claude-sonnet-4-6"
+    # Cost estimate: on précalcule pour 100 posts (valeur indicative dans le form,
+    # JS recalcule au changement de count via la formule first_chunk + (chunks-1)*later).
+    cost_by_model = {
+        m["id"]: cost_estimator.estimate_pipeline_cost(
+            model_adaptation=m["id"],
+            n_tweets=100,
+            mode="extension",
+        )
+        for m in Config.AVAILABLE_MODELS
+    }
+
     return render_template(
         "personas_detail.html",
         persona=persona,
         runs=runs,
         root_run=root_run,
         source_csv_available=source_csv_available,
+        models=Config.AVAILABLE_MODELS,
+        default_model=default_model,
+        cost_by_model=cost_by_model,
     )
 
 
@@ -113,11 +130,21 @@ def new():
     avatars = avatars_catalog.get_avatars_brief()
     settings = db.get_settings()
     default_model = settings.get("model_adaptation") or "claude-sonnet-4-6"
+
+    # Pré-calcule le coût estimé pour chaque modèle. La 1re génération paie le
+    # cache write ; les régénérations à chaud (TTL 5min Anthropic) coûtent ~3-4x
+    # moins. Le template affiche les deux et JS swap selon la dropdown.
+    cost_by_model = {
+        m["id"]: cost_estimator.estimate_manual_persona_cost(m["id"])
+        for m in Config.AVAILABLE_MODELS
+    }
+
     return render_template(
         "personas_new.html",
         avatars=avatars,
         models=Config.AVAILABLE_MODELS,
         default_model=default_model,
+        cost_by_model=cost_by_model,
     )
 
 
@@ -209,23 +236,55 @@ def new_generate():
     )
 
 
+def _parse_vocab_textarea(raw: str) -> list[str]:
+    """Convertit un textarea multi-lignes en liste de mots/expressions (un par ligne).
+
+    Ignore les lignes vides, trim chaque ligne. Préserve l'ordre.
+    """
+    if not raw:
+        return []
+    items = []
+    for line in raw.replace("\r\n", "\n").split("\n"):
+        line = line.strip().strip(",").strip()
+        if line:
+            items.append(line)
+    return items
+
+
 @bp.route("/new/save", methods=["POST"])
 def new_save():
-    """Persiste la persona draft. Les preview tweets ne sont PAS sauvegardés."""
-    raw = request.form.get("draft_payload")
-    if not raw:
-        flash("Payload de persona manquant — relance la génération.", "error")
-        return redirect(url_for("personas.new"))
-    try:
-        draft = json.loads(raw)
-    except json.JSONDecodeError:
-        flash("Payload de persona corrompu — relance la génération.", "error")
-        return redirect(url_for("personas.new"))
+    """Persiste la persona avec les valeurs (potentiellement éditées) du form.
 
-    persona = draft.get("persona") or {}
-    if not persona.get("first_name"):
+    Lit chaque champ depuis request.form — l'utilisateur a pu modifier bio,
+    backstory, voice_signature, vocab, prompts visuels avant de sauver.
+    Les presets non négociables (gender, age, avatars) sont en hidden fields.
+    Les preview tweets ne sont JAMAIS sauvegardés.
+    """
+    first_name = (request.form.get("first_name") or "").strip()
+    if not first_name:
         flash("Persona invalide (prénom manquant).", "error")
         return redirect(url_for("personas.new"))
+
+    gender = (request.form.get("gender") or "femme").strip()
+    age = _parse_int(request.form.get("age"))
+    avatar_primary = _parse_int(request.form.get("avatar_id_primary"))
+    avatar_secondary_raw = (request.form.get("avatar_id_secondary") or "").strip()
+    avatar_secondary = _parse_int(avatar_secondary_raw) if avatar_secondary_raw else None
+
+    persona = {
+        "first_name": first_name,
+        "gender": gender,
+        "age": age,
+        "avatar_id_primary": avatar_primary,
+        "avatar_id_secondary": avatar_secondary,
+        "bio_twitter": (request.form.get("bio_twitter") or "").strip() or None,
+        "backstory": (request.form.get("backstory") or "").strip() or None,
+        "voice_signature": (request.form.get("voice_signature") or "").strip() or None,
+        "vocabulary_yes": _parse_vocab_textarea(request.form.get("vocabulary_yes") or ""),
+        "vocabulary_no": _parse_vocab_textarea(request.form.get("vocabulary_no") or ""),
+        "profile_photo_prompt": (request.form.get("profile_photo_prompt") or "").strip() or None,
+        "banner_prompt": (request.form.get("banner_prompt") or "").strip() or None,
+    }
 
     try:
         persona_id = persona_manual.save_persona(persona)
@@ -236,6 +295,60 @@ def new_save():
 
     flash(f"Persona « {persona['first_name']} » créée (#{persona_id}).", "success")
     return redirect(url_for("personas.detail", persona_id=persona_id))
+
+
+@bp.route("/<int:persona_id>/generate", methods=["POST"])
+def generate_for_persona(persona_id: int):
+    """Lance un run de génération de tweets pour une persona (manuelle ou CSV-émergée).
+
+    Crée un nouveau run racine avec playbook vide et démarre le copywriting en
+    background. Redirige vers la page run (qui affiche le suivi live tant que
+    `status='running'`, puis bascule sur la vue tweets quand terminé).
+    """
+    from brain import pipeline as _pipeline  # avoid shadowing
+
+    persona = _pipeline.get_persona(persona_id)
+    if not persona:
+        flash("Persona introuvable.", "error")
+        return redirect(url_for("personas.index"))
+
+    count_raw = (request.form.get("count") or "").strip()
+    model = (request.form.get("model") or "").strip()
+    auto_match = bool(request.form.get("auto_match_images"))
+
+    try:
+        count = int(count_raw)
+    except (TypeError, ValueError):
+        flash("Nombre de posts invalide.", "error")
+        return redirect(url_for("personas.detail", persona_id=persona_id))
+
+    if count < 1 or count > 2000:
+        flash("Le nombre de posts doit être entre 1 et 2000.", "error")
+        return redirect(url_for("personas.detail", persona_id=persona_id))
+
+    if not model:
+        flash("Modèle LLM requis.", "error")
+        return redirect(url_for("personas.detail", persona_id=persona_id))
+
+    try:
+        prep = _pipeline.prepare_manual_run(
+            persona_id=persona_id,
+            count=count,
+            model=model,
+            auto_match_images=auto_match,
+        )
+    except Exception as e:
+        traceback.print_exc(file=sys.stdout)
+        flash(f"Erreur préparation : {type(e).__name__}: {e}", "error")
+        return redirect(url_for("personas.detail", persona_id=persona_id))
+
+    _pipeline.run_manual_async(prep)
+
+    flash(
+        f"Run #{prep['run_id']} lancé sur {persona['first_name']} · {count} posts demandés.",
+        "success",
+    )
+    return redirect(url_for("tweets.show_run", run_id=prep["run_id"]))
 
 
 @bp.route("/<int:persona_id>/delete", methods=["POST"])

@@ -156,6 +156,45 @@ def estimate_pipeline_cost(
     return breakdown
 
 
+def estimate_manual_persona_cost(model: str) -> dict:
+    """Estime le coût d'UNE génération manuelle de persona (1 seul appel LLM).
+
+    Système : copywriting (62k tokens cachables). User : avatars choisis (~5-10k
+    selon nombre d'avatars + notes utilisateur) + mission (~3k). Output :
+    persona JSON + 3 preview tweets = ~3.5k.
+
+    Retourne breakdown avec :
+    - `first_call_usd` : 1er appel (cache write payé)
+    - `regen_usd` : régénération à chaud (cache read, ~5min TTL)
+    - `pricing_available` : True si le modèle a une grille de prix connue
+    """
+    sys_size = SYS_TOKENS["copywriting"]  # même prompt cachable structure
+    user_fresh = 8000  # avatar primary ~5k + secondary optionnel ~5k + notes + mission
+    output = 3500      # persona JSON ~2k + 3 preview tweets ~1.5k
+
+    first_cost = estimate_cost(
+        model,
+        input_tokens=user_fresh,
+        cached_read=0,
+        cache_write=sys_size,
+        output_tokens=output,
+    )
+    regen_cost = estimate_cost(
+        model,
+        input_tokens=user_fresh,
+        cached_read=sys_size,
+        cache_write=0,
+        output_tokens=output,
+    )
+
+    return {
+        "model": model,
+        "first_call_usd": round(first_cost, 4),
+        "regen_usd": round(regen_cost, 4),
+        "pricing_available": model in PRICING,
+    }
+
+
 def estimate_vision_batch(model: str, n_images: int) -> dict:
     """Estime le coût d'un batch d'indexation Vision.
 

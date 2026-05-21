@@ -17,7 +17,7 @@
   </div>
 </header>
 
-<form method="post" action="{{ url_for('personas.new_generate') }}" class="stack stack-lg" style="max-width:760px;">
+<form method="post" action="{{ url_for('personas.new_generate') }}" class="stack stack-lg" style="max-width:760px;" id="generate-form">
 
   <section class="card">
     <h3 class="card-title">Identité de base</h3>
@@ -90,12 +90,30 @@
   <section class="card">
     <h3 class="card-title">Modèle LLM</h3>
     <div class="field">
-      <select name="model" class="select" required>
+      <select name="model" id="model-select" class="select" required>
         {% for m in models %}
-        <option value="{{ m.id }}" {% if m.id == default_model %}selected{% endif %}>{{ m.label }}</option>
+        <option value="{{ m.id }}"
+                data-first="{{ cost_by_model[m.id].first_call_usd }}"
+                data-regen="{{ cost_by_model[m.id].regen_usd }}"
+                data-priced="{{ '1' if cost_by_model[m.id].pricing_available else '0' }}"
+                {% if m.id == default_model %}selected{% endif %}>{{ m.label }}</option>
         {% endfor %}
       </select>
       <p class="field-help">Un seul appel API : persona + 3 tweets preview en une fois. Sonnet par défaut.</p>
+    </div>
+
+    <div class="cost-card" id="cost-card">
+      <div class="cost-row">
+        <div class="cost-label">Coût estimé de cette génération</div>
+        <div class="cost-amount" id="cost-first">—</div>
+      </div>
+      <div class="cost-row cost-row-secondary">
+        <div class="cost-label">Régénération à chaud (≤ 5 min après)</div>
+        <div class="cost-amount muted" id="cost-regen">—</div>
+      </div>
+      <div class="cost-help muted text-xs" id="cost-unpriced" style="display:none;">
+        Pas de grille de prix disponible pour ce modèle — l'estimation est indicative seulement.
+      </div>
     </div>
   </section>
 
@@ -144,6 +162,109 @@
     color: white;
   }
   .btn-primary:hover { background: #4a0a12; }
+  /* Cost estimate card under model dropdown */
+  .cost-card {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: rgba(106, 15, 26, 0.04);
+    border: 1px solid rgba(106, 15, 26, 0.15);
+    border-radius: 6px;
+  }
+  .cost-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .cost-row-secondary {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(106, 15, 26, 0.15);
+  }
+  .cost-label {
+    font-size: 13px;
+    color: var(--ink, #2a2a2a);
+  }
+  .cost-row-secondary .cost-label {
+    font-size: 11.5px;
+    color: var(--muted-soft, #888);
+  }
+  .cost-amount {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 17px;
+    color: var(--burgundy, #6a0f1a);
+  }
+  .cost-row-secondary .cost-amount {
+    font-size: 13.5px;
+    font-weight: 500;
+  }
+  .cost-help {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(106, 15, 26, 0.15);
+    line-height: 1.4;
+  }
+
+  /* Loading overlay shown during LLM call */
+  #loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 20, 24, 0.78);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  #loading-overlay.show { display: flex; }
+  .loading-card {
+    background: white;
+    padding: 32px 40px;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    text-align: center;
+    max-width: 420px;
+  }
+  .loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(106, 15, 26, 0.15);
+    border-top-color: var(--burgundy, #6a0f1a);
+    border-radius: 50%;
+    margin: 0 auto 18px;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .loading-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ink, #2a2a2a);
+    margin-bottom: 6px;
+  }
+  .loading-sub {
+    font-size: 13.5px;
+    color: var(--muted-soft, #777);
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+  .loading-timer {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--burgundy, #6a0f1a);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 1px;
+  }
+  .loading-eta {
+    font-size: 11px;
+    color: var(--muted-soft, #999);
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
   .btn-ghost {
     background: transparent;
     color: var(--ink, #333);
@@ -151,5 +272,95 @@
   }
   .btn-ghost:hover { background: rgba(0,0,0,0.04); }
 </style>
+
+<div id="loading-overlay" aria-live="polite">
+  <div class="loading-card">
+    <div class="loading-spinner" role="status" aria-label="Génération en cours"></div>
+    <div class="loading-title">Génération de la persona en cours…</div>
+    <div class="loading-sub">
+      Le LLM invente la voix, la backstory, le vocabulaire signature et 3 tweets de preview
+      en un seul appel. <strong>Garde cet onglet ouvert</strong> — la page va se rafraîchir
+      automatiquement quand c'est prêt.
+    </div>
+    <div class="loading-timer" id="loading-timer">00:00</div>
+    <div class="loading-eta">temps écoulé · ~30-60s typique</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // Coût dynamique selon le modèle sélectionné
+  const modelSelect = document.getElementById('model-select');
+  const costFirst = document.getElementById('cost-first');
+  const costRegen = document.getElementById('cost-regen');
+  const costUnpriced = document.getElementById('cost-unpriced');
+
+  function fmtUsd(v) {
+    const n = parseFloat(v);
+    if (isNaN(n)) return '—';
+    // < $0.01 → 4 décimales ; sinon 3
+    return n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(3)}`;
+  }
+  function updateCost() {
+    if (!modelSelect) return;
+    const opt = modelSelect.selectedOptions[0];
+    if (!opt) return;
+    costFirst.textContent = fmtUsd(opt.dataset.first);
+    costRegen.textContent = fmtUsd(opt.dataset.regen);
+    const priced = opt.dataset.priced === '1';
+    costUnpriced.style.display = priced ? 'none' : 'block';
+  }
+  if (modelSelect) {
+    modelSelect.addEventListener('change', updateCost);
+    updateCost();
+  }
+})();
+
+(function() {
+  const form = document.getElementById('generate-form');
+  const overlay = document.getElementById('loading-overlay');
+  const timerEl = document.getElementById('loading-timer');
+  if (!form || !overlay || !timerEl) return;
+
+  let started = null;
+  let intervalId = null;
+
+  function fmt(secs) {
+    const m = String(Math.floor(secs / 60)).padStart(2, '0');
+    const s = String(secs % 60).padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  form.addEventListener('submit', function() {
+    // Pas de preventDefault : on laisse le navigateur soumettre normalement.
+    // L'overlay reste affiché jusqu'à ce que la nouvelle page (preview ou re-form en cas d'erreur) charge.
+    overlay.classList.add('show');
+    // Désactive le bouton submit pour empêcher les double-clics
+    const btn = form.querySelector('button[type="submit"]');
+    if (btn) {
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'wait';
+    }
+    started = Date.now();
+    intervalId = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - started) / 1000);
+      timerEl.textContent = fmt(elapsed);
+    }, 1000);
+  });
+
+  // Si l'utilisateur navigue en arrière vers cette page (bfcache), on retire l'overlay
+  window.addEventListener('pageshow', function() {
+    overlay.classList.remove('show');
+    if (intervalId) { clearInterval(intervalId); intervalId = null; }
+    const btn = form.querySelector('button[type="submit"]');
+    if (btn) {
+      btn.disabled = false;
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+    }
+  });
+})();
+</script>
 
 {% endblock %}

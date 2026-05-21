@@ -8,78 +8,103 @@
   <div>
     <a href="{{ url_for('personas.new') }}" class="text-xs muted"
        style="display:inline-block; margin-bottom:8px; text-decoration:none;">← Modifier les presets</a>
-    <h1>{{ persona.first_name }} <span class="muted" style="font-weight:400;">— preview</span></h1>
+    <h1>{{ persona.first_name }} <span class="muted" style="font-weight:400;">— preview éditable</span></h1>
     <p class="sub">
       <strong>{{ persona.gender|capitalize }}</strong> · {{ persona.age }} ans
       · <span class="pill">Avatar {{ persona.avatar_id_primary }} — {{ avatar_primary.name if avatar_primary else '?' }}</span>
       {% if avatar_secondary %}<span class="muted text-xs">+ secondaire {{ avatar_secondary.id }} — {{ avatar_secondary.name }}</span>{% endif %}
     </p>
     <p class="sub" style="margin-top:6px;">
-      Vérifie la voix sur les 3 tweets ci-dessous. Si elle ne te plaît pas, régénère.
-      Les tweets de preview ne sont PAS sauvegardés — seule la persona l'est si tu cliques "Sauvegarder".
+      Tu peux modifier chaque champ avant de sauvegarder. La <strong>signature de voix</strong> est
+      le champ le plus important — relue mot pour mot à chaque future génération. Les tweets de
+      preview restent en lecture seule (ils ne sont pas sauvegardés de toute façon).
     </p>
   </div>
 </header>
 
-{# ───── Persona summary ───── #}
-<section class="card mb-lg">
-  <h3 class="card-title">Identité générée</h3>
+{# ───── FORM principal : édite tous les champs + Save ───── #}
+<form method="post" action="{{ url_for('personas.new_save') }}" id="save-form">
 
-  <div class="grid grid-2" style="gap:18px;">
-    <div>
-      <div class="label-mini">Bio Twitter</div>
-      <div class="text-block italic-serif">{{ persona.bio_twitter or '—' }}</div>
-    </div>
-    <div>
-      <div class="label-mini">Vocabulaire signature ({{ (persona.vocabulary_yes or [])|length }})</div>
-      <div class="vocab-list">
-        {% for w in persona.vocabulary_yes or [] %}
-          <span class="vocab-pill yes">{{ w }}</span>
-        {% endfor %}
-        {% if not persona.vocabulary_yes %}<span class="muted">—</span>{% endif %}
+  {# Champs cachés non éditables (presets non négociables côté UI) #}
+  <input type="hidden" name="gender" value="{{ persona.gender }}">
+  <input type="hidden" name="age" value="{{ persona.age }}">
+  <input type="hidden" name="avatar_id_primary" value="{{ persona.avatar_id_primary }}">
+  <input type="hidden" name="avatar_id_secondary" value="{{ persona.avatar_id_secondary or '' }}">
+
+  <section class="card mb-lg">
+    <h3 class="card-title">Identité — éditable</h3>
+
+    <div class="grid grid-2" style="gap:18px;">
+      <div class="field">
+        <label class="label-mini" for="f-first-name">Prénom</label>
+        <input type="text" name="first_name" id="f-first-name" class="input" value="{{ persona.first_name }}" required>
+      </div>
+      <div class="field">
+        <label class="label-mini" for="f-bio">Bio Twitter (≤ 160 chars)</label>
+        <textarea name="bio_twitter" id="f-bio" class="input italic-serif" rows="3" maxlength="160">{{ persona.bio_twitter or '' }}</textarea>
+        <div class="char-counter muted text-xs" data-target="f-bio" data-max="160">{{ (persona.bio_twitter or '')|length }}/160</div>
       </div>
     </div>
-  </div>
 
-  <div style="margin-top:18px;">
-    <div class="label-mini">Backstory</div>
-    <div class="text-block">{{ persona.backstory or '—' }}</div>
-  </div>
+    <div class="field" style="margin-top:18px;">
+      <label class="label-mini" for="f-backstory">Backstory</label>
+      <textarea name="backstory" id="f-backstory" class="input" rows="6">{{ persona.backstory or '' }}</textarea>
+    </div>
 
-  <div style="margin-top:18px;">
-    <div class="label-mini">Signature de voix</div>
-    <div class="text-block" style="white-space:pre-wrap;">{{ persona.voice_signature or '—' }}</div>
-  </div>
+    <div class="field" style="margin-top:18px;">
+      <label class="label-mini" for="f-voice">
+        Signature de voix
+        <span style="color:#b42323; font-weight:600;">★ Critique</span>
+      </label>
+      <textarea name="voice_signature" id="f-voice" class="input voice-sig" rows="10">{{ persona.voice_signature or '' }}</textarea>
+      <p class="field-help">
+        Ce champ est relu textuellement à chaque future génération de tweets pour cette persona.
+        Plus il est dense et opératoire (ponctuation précise, emojis nommés, tournures concrètes,
+        rythmique), plus la voix sera reproduite fidèlement. Évite le vague.
+      </p>
+    </div>
 
-  <div class="grid grid-2" style="gap:18px; margin-top:18px;">
-    <div>
-      <div class="label-mini">Vocabulaire banni ({{ (persona.vocabulary_no or [])|length }})</div>
-      <div class="vocab-list">
-        {% for w in persona.vocabulary_no or [] %}
-          <span class="vocab-pill no">{{ w }}</span>
-        {% endfor %}
-        {% if not persona.vocabulary_no %}<span class="muted">—</span>{% endif %}
+    <div class="grid grid-2" style="gap:18px; margin-top:18px;">
+      <div class="field">
+        <label class="label-mini" for="f-vocab-yes">Palette lexicale signature (un mot/expression par ligne)</label>
+        <textarea name="vocabulary_yes" id="f-vocab-yes" class="input mono" rows="6">{% for w in persona.vocabulary_yes or [] %}{{ w }}
+{% endfor %}</textarea>
+        <p class="field-help">
+          Direction artistique, pas quota — ces mots définissent le grain, pas une obligation
+          d'apparition.
+        </p>
+      </div>
+      <div class="field">
+        <label class="label-mini" for="f-vocab-no">Vocabulaire banni (un mot/expression par ligne)</label>
+        <textarea name="vocabulary_no" id="f-vocab-no" class="input mono" rows="6">{% for w in persona.vocabulary_no or [] %}{{ w }}
+{% endfor %}</textarea>
+        <p class="field-help">
+          Mots que cette persona ne dirait jamais — audit post-génération les détectera.
+        </p>
       </div>
     </div>
-    <div>
-      <div class="label-mini">Prompts visuels (auto-générés)</div>
-      <details>
-        <summary class="muted text-xs" style="cursor:pointer;">Photo de profil ({{ (persona.profile_photo_prompt or '')|length }} chars)</summary>
-        <div class="text-block text-xs" style="margin-top:6px;">{{ persona.profile_photo_prompt or '—' }}</div>
-      </details>
-      <details style="margin-top:8px;">
-        <summary class="muted text-xs" style="cursor:pointer;">Bannière ({{ (persona.banner_prompt or '')|length }} chars)</summary>
-        <div class="text-block text-xs" style="margin-top:6px;">{{ persona.banner_prompt or '—' }}</div>
-      </details>
-    </div>
-  </div>
-</section>
 
-{# ───── Preview tweets ───── #}
+    <div class="field" style="margin-top:18px;">
+      <label class="label-mini" for="f-photo">Prompt photo de profil</label>
+      <textarea name="profile_photo_prompt" id="f-photo" class="input" rows="5">{{ persona.profile_photo_prompt or '' }}</textarea>
+    </div>
+
+    <div class="field" style="margin-top:18px;">
+      <label class="label-mini" for="f-banner">Prompt bannière Twitter</label>
+      <textarea name="banner_prompt" id="f-banner" class="input" rows="5">{{ persona.banner_prompt or '' }}</textarea>
+    </div>
+  </section>
+
+  {# Bouton Save dans ce form, en haut des actions #}
+  <input type="hidden" name="save_action" value="1">
+</form>
+
+{# ───── Preview tweets (read-only) ───── #}
 <section class="card mb-lg">
-  <h3 class="card-title">Tweets de preview</h3>
+  <h3 class="card-title">Tweets de preview <span class="muted" style="font-weight:400; font-size:13px;">(non sauvegardés)</span></h3>
   <p class="card-sub" style="margin-bottom:14px;">
-    Ces 3 tweets démontrent la voix générée. Ils ne sont PAS sauvegardés.
+    Ces 3 tweets démontrent la voix générée. Si elle ne te satisfait pas, modifie la <strong>signature de voix</strong>
+    ci-dessus et régénère pour voir une nouvelle preview, ou sauvegarde directement et lance ensuite un run.
   </p>
 
   <div class="tweet-preview">
@@ -89,7 +114,7 @@
   </div>
 
   <div class="tweet-preview">
-    <div class="tweet-tag">Thread ({{ previews.thread|length }} tweets)</div>
+    <div class="tweet-tag">Thread ({{ previews.thread|length }} tweets, mention Compaatible incluse)</div>
     {% for t in previews.thread or [] %}
       <div class="tweet-content tweet-thread-item">
         <span class="tweet-thread-pos">T{{ loop.index }}</span>
@@ -121,13 +146,11 @@
       <input type="hidden" name="first_name_hint" value="{{ inputs.first_name_hint or '' }}">
       <input type="hidden" name="notes" value="{{ inputs.notes or '' }}">
       <input type="hidden" name="model" value="{{ inputs.model }}">
-      <button type="submit" class="btn btn-ghost" title="Re-générer avec les mêmes presets">⟳ Régénérer</button>
+      <button type="submit" class="btn btn-ghost" title="Re-générer avec les mêmes presets (nouvelles previews)">⟳ Régénérer</button>
     </form>
 
-    <form method="post" action="{{ url_for('personas.new_save') }}" style="margin:0;">
-      <input type="hidden" name="draft_payload" value="{{ draft_payload|e }}">
-      <button type="submit" class="btn btn-primary">Sauvegarder cette persona →</button>
-    </form>
+    {# Submit du form principal #}
+    <button type="submit" form="save-form" class="btn btn-primary">Sauvegarder la persona →</button>
   </div>
 </section>
 
@@ -146,35 +169,48 @@
     color: var(--muted-soft, #888);
     margin-bottom: 6px;
     font-weight: 500;
+    display: block;
   }
-  .text-block {
+  .field {
+    display: block;
+  }
+  .input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--hairline-strong, #ccc);
+    border-radius: 6px;
     font-size: 14px;
+    background: white;
+    font-family: inherit;
     line-height: 1.55;
-    color: var(--ink, #2a2a2a);
+    resize: vertical;
   }
-  .vocab-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+  .input:focus {
+    outline: none;
+    border-color: var(--burgundy, #6a0f1a);
+    box-shadow: 0 0 0 2px rgba(106, 15, 26, 0.1);
   }
-  .vocab-pill {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 12px;
+  .input.mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .input.voice-sig {
+    background: rgba(106, 15, 26, 0.025);
+    border-color: rgba(106, 15, 26, 0.3);
+  }
+  .field-help {
     font-size: 12px;
+    color: var(--muted-soft, #888);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+  .char-counter {
+    margin-top: 4px;
+    text-align: right;
     font-family: 'JetBrains Mono', monospace;
   }
-  .vocab-pill.yes {
-    background: rgba(70, 130, 70, 0.1);
-    color: #2d5a2d;
-    border: 1px solid rgba(70, 130, 70, 0.25);
-  }
-  .vocab-pill.no {
-    background: rgba(180, 35, 35, 0.08);
-    color: #8a1a1a;
-    border: 1px solid rgba(180, 35, 35, 0.2);
-    text-decoration: line-through;
-  }
+  .char-counter.warn { color: #b88a00; }
+  .char-counter.err  { color: #b42323; }
   .tweet-preview {
     border: 1px solid var(--hairline-strong, #e0e0e0);
     border-radius: 8px;
@@ -233,6 +269,8 @@
     text-decoration: none;
     display: inline-flex;
     align-items: center;
+    font-family: inherit;
+    font-size: 14px;
   }
   .btn-primary {
     background: var(--burgundy, #6a0f1a);
@@ -246,5 +284,24 @@
   }
   .btn-ghost:hover { background: rgba(0,0,0,0.04); }
 </style>
+
+<script>
+(function() {
+  // Char counter pour bio
+  document.querySelectorAll('.char-counter[data-target]').forEach(function(c) {
+    const target = document.getElementById(c.dataset.target);
+    const max = parseInt(c.dataset.max, 10);
+    if (!target || !max) return;
+    const update = () => {
+      const n = target.value.length;
+      c.textContent = `${n}/${max}`;
+      c.classList.toggle('warn', n > max * 0.85 && n <= max);
+      c.classList.toggle('err', n > max);
+    };
+    target.addEventListener('input', update);
+    update();
+  });
+})();
+</script>
 
 {% endblock %}

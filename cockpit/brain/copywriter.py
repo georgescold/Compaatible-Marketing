@@ -993,20 +993,26 @@ def _process_extension_chunk(
     vocab_yes = persona.get("vocabulary_yes") or []
     vocab_no = persona.get("vocabulary_no") or []
     voice_block_parts = [
-        "## VOIX DE LA PERSONA — marqueurs NON NÉGOCIABLES\n",
-        "Ces marqueurs définissent la signature reconnaissable de la persona. ",
-        "Avant chaque tweet, relis cette section et vérifie que ton tweet en porte ",
-        "au moins quelques-uns. **Pas de pastiche, pas de surdose** — l'objectif est ",
-        "que tes tweets puissent se glisser dans le corpus existant sans qu'on ",
-        "devine qu'ils sont postérieurs.\n",
+        "## VOIX DE LA PERSONA — direction artistique non négociable\n",
+        "Cette section décrit la signature reconnaissable de la persona. "
+        "L'objectif est que tes tweets puissent se glisser dans le corpus existant "
+        "sans qu'on devine qu'ils sont postérieurs. **Pas de pastiche, pas de surdose.**\n",
     ]
     if voice_sig:
         voice_block_parts.append(f"\n### Signature de voix\n{voice_sig}\n")
     if vocab_yes:
         voice_block_parts.append(
-            "\n### Vocabulaire SIGNATURE (à mobiliser régulièrement)\n"
+            "\n### Palette lexicale signature — direction artistique, PAS quota\n"
             + ", ".join(f"`{w}`" for w in vocab_yes)
-            + "\n"
+            + "\n\n"
+            "**Ces mots et expressions sont un indicateur du GRAIN de la persona** — ils "
+            "te font sentir comment elle pense, ce qu'elle observe, son champ "
+            "sémantique préféré. Ils ne sont **PAS une checklist à cocher**. La majorité "
+            "de tes tweets ne devront contenir aucun de ces mots. Quand l'un d'eux "
+            "s'impose naturellement dans une scène, utilise-le. Sinon, écris dans "
+            "la voix de la persona avec d'autres mots — l'esprit prime sur la lettre. "
+            "**Si tu places la moitié de tes tweets autour de ces mots, tu es en "
+            "surdose et tu trahis la voix.**\n"
         )
     if vocab_no:
         voice_block_parts.append(

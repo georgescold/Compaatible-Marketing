@@ -731,6 +731,236 @@ def run_extension_pipeline(prep: dict) -> dict:
         raise
 
 
+# ─── Pipeline pour persona créée manuellement (sans CSV source) ──────────────
+
+def prepare_manual_run(
+    persona_id: int,
+    count: int,
+    model: str,
+    auto_match_images: bool = False,
+) -> dict:
+    """Prépare un run pour une persona créée manuellement (sans CSV source).
+
+    Crée un nouveau run racine (pas d'extension d'un parent) avec :
+    - playbook_json = {} (la persona manuelle n'a pas de mécaniques extraites
+      d'un compte source ; le LLM s'appuie uniquement sur la fiche avatar +
+      voix + techniques copywriting universelles du system prompt).
+    - source_csv_name = '(persona manuelle)' (marqueur pour distinguer).
+    - parent_run_id = NULL (c'est un run racine pour cette persona).
+
+    Réutilise `copywriter.generate_extension` qui sait déjà inventer depuis
+    persona + playbook sans tweets sources. Pour ce run, extension_idx=None
+    → les tweets seront marqués comme originaux de la persona.
+    """
+    if count <= 0:
+        raise PipelineError("Le nombre de tweets à inventer doit être > 0.")
+    if count > 2000:
+        raise PipelineError(f"Trop de tweets demandés ({count}). Maximum 2000 par run.")
+
+    # Charge la persona depuis DB pour vérifier qu'elle existe + construire le dict
+    with db.cursor() as cur:
+        cur.execute(
+            "SELECT first_name, age, gender, bio_twitter, backstory, avatar_id_primary, "
+            "avatar_id_secondary, voice_signature, vocabulary_yes, vocabulary_no, "
+            "profile_photo_prompt, banner_prompt FROM mkt_personas_emerged WHERE id = %s",
+            (persona_id,),
+        )
+        row = cur.fetchone()
+    if not row:
+        raise PipelineError(f"Persona #{persona_id} introuvable.")
+    persona = dict(row)
+
+    # Création du run row (pas de CSV, pas de playbook)
+    run_id = _create_run(
+        persona_id=persona_id,
+        source_csv_name="(persona manuelle)",
+        source_csv_size_kb=0,
+        source_tweets_count=0,
+        model_translation=None,
+        model_analysis=None,
+        model_adaptation=model,
+        playbook_json=json.dumps({}),
+        current_stage="copy",
+        parent_run_id=None,
+    )
+
+    # State mémoire pour le polling UI : skip parse/analyze/persona
+    run_state.init(run_id)
+    run_state.skip_stage(run_id, "parse", "Persona manuelle : pas de CSV à parser.")
+    run_state.skip_stage(run_id, "analyze", "Persona manuelle : pas de compte source à analyser.")
+    run_state.skip_stage(run_id, "persona", "Persona déjà créée manuellement.")
+
+    return {
+        "run_id": run_id,
+        "count": count,
+        "persona": persona,
+        "persona_id": persona_id,
+        "model": model,
+        "auto_match_images": auto_match_images,
+    }
+
+
+def run_manual_async(prep: dict) -> None:
+    """Lance run_manual_pipeline dans un thread daemon."""
+    t = threading.Thread(target=_run_manual_in_background, args=(prep,), daemon=True)
+    t.start()
+
+
+def _run_manual_in_background(prep: dict) -> None:
+    try:
+        run_manual_pipeline(prep)
+    except Exception:
+        pass
+
+
+def run_manual_pipeline(prep: dict) -> dict:
+    """Génère N tweets pour une persona manuelle (run racine, pas extension).
+
+    Réutilise `copywriter.generate_extension` (qui sait inventer sans sources)
+    mais avec extension_idx=None pour que les tweets soient stockés comme
+    originaux de cette persona.
+    """
+    from brain import copywriter
+
+    run_id = prep["run_id"]
+    count = prep["count"]
+    persona = prep["persona"]
+    persona_id = prep["persona_id"]
+    model = prep["model"]
+
+    pipeline_start = time.time()
+    _log(run_id, "parse", f"Run manuel sur persona #{persona_id} ({persona['first_name']}) demarre · {count} posts demandes · modele {model}")
+
+    total_usage = {"input_tokens": 0, "cached_tokens": 0, "cache_creation_tokens": 0, "output_tokens": 0, "cost_usd_estimate": 0.0}
+
+    try:
+        # Échantillon de voix : pour une persona manuelle au premier run, il n'y a
+        # encore aucun tweet existant. Le sample sera vide, et la consigne système
+        # gère ce cas ("(aucun tweet existant : démarrage du corpus)").
+        existing_sample = _fetch_voice_sample(persona_id, limit=60)
+        _log(run_id, "copy", f"Calibre de voix · {len(existing_sample)} tweets existants (vide pour 1er run manuel)")
+
+        # Stats persona : None au 1er run (pas assez de tweets pour calculer)
+        mention_stats = _fetch_persona_mention_ratio(persona_id)
+        style_stats = _fetch_persona_style_stats(persona_id)
+        if mention_stats is None:
+            _log(run_id, "copy", "Cible mentions · 1er run manuel, fallback doctrine 5-8% du prompt")
+        if style_stats is None:
+            _log(run_id, "copy", "Cible style · 1er run manuel, fallback jugement editorial du prompt")
+
+        n_chunks_estimated = (count + 19) // 20
+        run_state.begin_stage(run_id, "copy", f"Manuel · {model} · ~{n_chunks_estimated} chunks à inventer...")
+        t0 = time.time()
+        _update_run(run_id, current_stage="copying")
+
+        # Playbook vide : la persona manuelle n'en a pas. Le copywriter s'appuie
+        # uniquement sur le system prompt (avatars + techniques + cascade) + persona.
+        corpus = copywriter.generate_extension(
+            playbook={},
+            persona=persona,
+            count=count,
+            existing_sample=existing_sample,
+            model=model,
+            csv_run_id=run_id,        # le run lui-même est la "racine"
+            persona_id=persona_id,
+            progress_run_id=run_id,
+            start_chunk_idx=0,
+            extension_idx=None,       # tweets = originaux de la persona
+            mention_stats=mention_stats,
+            style_stats=style_stats,
+        )
+        _merge_usage(total_usage, corpus["usage"])
+
+        cumulative_tweets = _count_run_tweets(run_id)
+        cumulative_threads = _count_threads(run_id)
+
+        if corpus.get("paused"):
+            pause_state = {
+                "mode": "manual",
+                "next_chunk_idx": corpus["next_chunk_idx"],
+                "total_chunks": corpus["total_chunks"],
+                "count": count,
+                "extra_done": int(corpus.get("extra_done") or 0),
+            }
+            _update_run(
+                run_id,
+                current_stage="paused",
+                status="paused",
+                pause_state_json=json.dumps(pause_state),
+                output_tweets_count=cumulative_tweets,
+                threads_count=cumulative_threads,
+                input_tokens=total_usage["input_tokens"],
+                cached_tokens=total_usage["cached_tokens"],
+                output_tokens=total_usage["output_tokens"],
+                cost_usd=total_usage["cost_usd_estimate"],
+            )
+            run_state.mark_paused(run_id, f"Pause au chunk {corpus['next_chunk_idx']}/{corpus['total_chunks']} · {corpus['tweets_inserted']} tweet(s) déjà inséré(s)")
+            _log(run_id, "copy", f"PAUSE manuel · chunk {corpus['next_chunk_idx']}/{corpus['total_chunks']} · {corpus['tweets_inserted']} tweets sauvegardés")
+            return {
+                "run_id": run_id,
+                "persona_id": persona_id,
+                "tweets_inserted": corpus["tweets_inserted"],
+                "paused": True,
+                "usage": total_usage,
+            }
+
+        quota_hit = bool(corpus.get("quota_exhausted"))
+        if quota_hit:
+            _log(run_id, "copy", f"QUOTA · run manuel interrompu apres {corpus['tweets_inserted']} tweet(s)")
+        else:
+            _log(run_id, "copy", f"OK · run manuel : {corpus['tweets_inserted']} tweets inventes en {corpus.get('chunks_processed','?')} chunks ({time.time()-t0:.1f}s)")
+
+        if prep.get("auto_match_images"):
+            _auto_match_images(run_id)
+
+        final_status = "completed_partial" if quota_hit else "completed"
+        final_stage = "quota_exhausted" if quota_hit else "completed"
+        final_err = corpus.get("quota_error") if quota_hit else None
+        _update_run(
+            run_id,
+            current_stage=final_stage,
+            status=final_status,
+            completed_at=datetime.now().isoformat(),
+            output_tweets_count=cumulative_tweets,
+            threads_count=cumulative_threads,
+            input_tokens=total_usage["input_tokens"],
+            cached_tokens=total_usage["cached_tokens"],
+            output_tokens=total_usage["output_tokens"],
+            cost_usd=total_usage["cost_usd_estimate"],
+            error_message=final_err,
+        )
+
+        elapsed = time.time() - pipeline_start
+        _log(run_id, "done", f"Run manuel {'INTERROMPU (quota)' if quota_hit else 'complet'} · {cumulative_tweets} tweets · ${total_usage['cost_usd_estimate']:.4f} · {elapsed:.1f}s")
+        _print_run_dashboard(run_id)
+        run_state.finalize(run_id, success=not quota_hit, error=final_err)
+
+        return {
+            "run_id": run_id,
+            "persona_id": persona_id,
+            "tweets_inserted": corpus["tweets_inserted"],
+            "threads_count": cumulative_threads,
+            "usage": total_usage,
+            "quota_exhausted": quota_hit,
+        }
+
+    except llm_client.LLMQuotaExhaustedError as e:
+        err_msg = str(e)
+        _log(run_id, "fail", f"QUOTA run manuel · {err_msg}")
+        _update_run(run_id, status="failed", current_stage="quota_exhausted", error_message=err_msg)
+        run_state.finalize(run_id, success=False, error=err_msg)
+        raise
+
+    except Exception as e:
+        err_msg = f"{type(e).__name__}: {e}"
+        _log(run_id, "fail", f"ECHEC run manuel · {err_msg}")
+        traceback.print_exc(file=sys.stdout)
+        sys.stdout.flush()
+        _update_run(run_id, status="failed", current_stage="failed", error_message=err_msg)
+        run_state.finalize(run_id, success=False, error=err_msg)
+        raise
+
+
 def resume_paused_async(run_id: int, override_models: dict | None = None) -> None:
     """Lance la reprise d'un run paused dans un thread daemon."""
     t = threading.Thread(target=_resume_paused_in_background, args=(run_id, override_models), daemon=True)
