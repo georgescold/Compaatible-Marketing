@@ -31,7 +31,7 @@
   <input type="hidden" name="avatar_id_primary" value="{{ persona.avatar_id_primary }}">
   <input type="hidden" name="avatar_id_secondary" value="{{ persona.avatar_id_secondary or '' }}">
 
-  <section class="card mb-lg persona-card" id="persona-card">
+  <section class="card mb-lg persona-edit-card" id="persona-edit-card">
     <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:14px;">
       <h3 class="card-title" style="margin:0;">Identité</h3>
       <button type="button" id="toggle-edit" class="btn-edit-toggle">
@@ -235,7 +235,7 @@
 {% endif %}
 
 <style>
-  .persona-card {}
+  .persona-edit-card {}
   .field-row {
     margin-bottom: 14px;
   }
@@ -250,10 +250,10 @@
   }
 
   /* View / Edit toggle */
-  .persona-card .view-mode { display: block; }
-  .persona-card .edit-mode { display: none; }
-  .persona-card.edit-active .view-mode { display: none; }
-  .persona-card.edit-active .edit-mode { display: block; }
+  .persona-edit-card .view-mode { display: block; }
+  .persona-edit-card .edit-mode { display: none; }
+  .persona-edit-card.edit-active .view-mode { display: none; }
+  .persona-edit-card.edit-active .edit-mode { display: block; }
 
   .btn-edit-toggle {
     display: inline-flex;
@@ -273,7 +273,7 @@
     background: rgba(106, 15, 26, 0.06);
     border-color: var(--burgundy, #6a0f1a);
   }
-  .persona-card.edit-active .btn-edit-toggle {
+  .persona-edit-card.edit-active .btn-edit-toggle {
     background: var(--burgundy, #6a0f1a);
     color: white;
     border-color: var(--burgundy, #6a0f1a);
@@ -393,8 +393,8 @@
 
 <script>
 (function() {
-  // Toggle view / edit mode sur la persona-card
-  const card = document.getElementById('persona-card');
+  // Toggle view / edit mode sur la persona-edit-card
+  const card = document.getElementById('persona-edit-card');
   const toggleBtn = document.getElementById('toggle-edit');
   const toggleLabel = toggleBtn ? toggleBtn.querySelector('.toggle-label') : null;
   if (card && toggleBtn) {
