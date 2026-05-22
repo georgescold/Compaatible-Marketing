@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Fichiers envoyés · Cockpit Compaatible{% endblock %}
+{% block crumb %}Fichiers envoyés{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Historique · Cortex</span>
+    <h1>Fichiers envoyés</h1>
+    <p class="sub">Tous les CSV poussés vers Cortex via le cockpit. Cliquer sur un envoi pour voir l'aperçu du contenu, les métadonnées et re-télécharger le fichier.</p>
+  </div>
+</header>
+
+<section>
+  <div class="section-row">
+    <h2 class="section-title">Envois</h2>
+    {% if uploads %}<span class="section-meta">{{ uploads|length }} envoi(s)</span>{% endif %}
+  </div>
+
+  {% if uploads %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th style="width:60px;">#</th>
+          <th>Date</th>
+          <th>Fichier</th>
+          <th>Persona</th>
+          <th>Run</th>
+          <th>Status</th>
+          <th class="num">Éligibles</th>
+          <th class="num">Valides Cortex</th>
+          <th class="num">Threads</th>
+          <th class="num">Warnings</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in uploads %}
+        <tr>
+          <td class="mono dim">{{ u.id }}</td>
+          <td class="dim">{{ u.sent_at.strftime('%Y-%m-%d %H:%M') if u.sent_at else '—' }}</td>
+          <td>
+            <div class="row-name">{{ u.filename }}</div>
+            {% if u.file_id_cortex %}<div class="row-sub mono">file_id {{ u.file_id_cortex }}</div>{% endif %}
+          </td>
+          <td>
+            {% if u.persona_first_name %}
+              <a href="{{ url_for('personas.detail', persona_id=u.persona_id) }}" class="text-burgundy" style="font-weight:500; text-decoration:none;">
+                <div class="row-name">{{ u.persona_first_name }}</div>
+                <div class="row-sub">Avatar {{ u.persona_avatar }}</div>
+              </a>
+            {% else %}
+              <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.csv_run_id %}
+              <a href="{{ url_for('tweets.show_run', run_id=u.csv_run_id) }}" class="text-burgundy" style="font-weight:500; text-decoration:none;">
+                Run #{{ u.csv_run_id }}
+              </a>
+            {% else %}
+              <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.status == 'sent' %}
+              <span class="pill ok">sent</span>
+            {% elif u.status == 'failed' %}
+              <span class="pill err" title="{{ u.error_message or '' }}">failed</span>
+            {% else %}
+              <span class="pill muted">{{ u.status or '—' }}</span>
+            {% endif %}
+          </td>
+          <td class="num">{{ u.eligible_count if u.eligible_count is not none else '—' }}</td>
+          <td class="num">{{ u.cortex_valid_tweets if u.cortex_valid_tweets is not none else '—' }}</td>
+          <td class="num">{{ u.cortex_threads if u.cortex_threads is not none else '—' }}</td>
+          <td class="num">{{ u.cortex_warnings if u.cortex_warnings is not none else '—' }}</td>
+          <td>
+            <a href="{{ url_for('files.detail', upload_id=u.id) }}" class="text-burgundy" style="font-weight:500;">Ouvrir →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="em-title">Aucun envoi pour l'instant.</div>
+    <div class="em-sub">Quand tu pousses un CSV vers Cortex depuis un run, il apparaît ici avec son contenu archivé.</div>
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}

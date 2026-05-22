@@ -1029,12 +1029,35 @@ def send_to_cortex(run_id: int):
         )
         return redirect(url_for("tweets.show_run", run_id=run_id))
 
+    # Archive le CSV envoyé sur disque avant l'upload — permet de re-consulter
+    # le contenu exact via l'onglet Fichiers, peu importe le statut Cortex après.
+    from datetime import datetime
+    import json as _json
+    archive_dir = Config.UPLOADS_DIR / "cortex_sent"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    archive_filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}"
+    archive_path = archive_dir / archive_filename
+    archive_path.write_bytes(csv_bytes)
+    archived_csv_path_str = str(archive_path)
+
+    persona_id = run.get("persona_id")
+
     try:
         payload = cortex_client.upload_csv(csv_bytes, filename)
     except cortex_client.CortexConfigError as e:
         flash(f"Cortex non configuré : {e}", "error")
         return redirect(url_for("settings.index"))
     except cortex_client.CortexError as e:
+        # Log l'envoi raté pour traçabilité dans l'onglet Fichiers.
+        from brain import db as _db
+        with _db.cursor() as _cur:
+            _cur.execute(
+                """INSERT INTO mkt_cortex_uploads
+                   (csv_run_id, persona_id, filename, eligible_count, archived_csv_path,
+                    status, error_message)
+                   VALUES (%s, %s, %s, %s, %s, 'failed', %s)""",
+                (run_id, persona_id, filename, eligible_count, archived_csv_path_str, str(e)),
+            )
         flash(f"Envoi Cortex échoué : {e}", "error")
         return redirect(url_for("tweets.show_run", run_id=run_id))
 
@@ -1044,6 +1067,22 @@ def send_to_cortex(run_id: int):
     valid = summary.get("validTweets", eligible_count)
     threads = len(summary.get("threads") or [])
     warnings = len(summary.get("warnings") or [])
+
+    # Enregistre l'envoi réussi dans mkt_cortex_uploads pour l'onglet Fichiers.
+    from brain import db as _db
+    with _db.cursor() as _cur:
+        _cur.execute(
+            """INSERT INTO mkt_cortex_uploads
+               (csv_run_id, persona_id, filename, file_id_cortex, eligible_count,
+                cortex_valid_tweets, cortex_threads, cortex_warnings,
+                parse_summary_json, archived_csv_path, status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'sent')""",
+            (
+                run_id, persona_id, filename, str(file_id), eligible_count,
+                valid, threads, warnings,
+                _json.dumps(payload, ensure_ascii=False), archived_csv_path_str,
+            ),
+        )
 
     parts = [f"{valid} tweet(s) valides envoyés vers Cortex"]
     if threads:

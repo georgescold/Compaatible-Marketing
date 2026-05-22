@@ -41,6 +41,7 @@
             ('personas.index',  'Personas',  'user',    None,           0),
             ('images.index',    'Images',    'image',   images_count,   images_running),
             ('knowledge.index', 'Knowledge', 'book',    None,           0),
+            ('files.index',     'Fichiers',  'archive', None,           0),
           ] %}
           {% for endpoint, label, icon, count, running in links %}
             {% set ns = endpoint.split('.')[0] %}
@@ -57,6 +58,8 @@
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                 {% elif icon == 'user' %}
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                {% elif icon == 'archive' %}
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
                 {% endif %}
                 <span>{{ label }}</span>
                 {% if running and running > 0 %}<span class="sidebar-live-dot" title="{{ running }} run(s) en cours"></span>{% endif %}

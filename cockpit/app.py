@@ -9,7 +9,7 @@ des changements de code, redémarrer manuellement (Ctrl+C puis relancer).
 from flask import Flask
 
 from config import Config
-from routes import api, api_keys, dashboard, settings, tweets, images, knowledge, personas
+from routes import api, api_keys, dashboard, settings, tweets, images, knowledge, personas, files
 
 
 def ensure_schema() -> None:
@@ -80,6 +80,7 @@ def create_app() -> Flask:
     app.register_blueprint(knowledge.bp)
     app.register_blueprint(api_keys.bp)
     app.register_blueprint(personas.bp)
+    app.register_blueprint(files.bp)
     app.register_blueprint(api.bp)
 
     # Sidebar counts + indicateurs runs en cours (rendus dans base.html).

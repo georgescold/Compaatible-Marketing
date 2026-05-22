@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Envoi #{{ upload.id }} · Fichiers envoyés{% endblock %}
+{% block crumb %}<a href="{{ url_for('files.index') }}" style="color:inherit; text-decoration:none;">Fichiers envoyés</a> / Envoi #{{ upload.id }}{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Envoi Cortex #{{ upload.id }}</span>
+    <h1>{{ upload.filename }}</h1>
+    <p class="sub">
+      Envoyé le {{ upload.sent_at.strftime('%Y-%m-%d à %H:%M') if upload.sent_at else '—' }}
+      {% if upload.status == 'sent' %}<span class="pill ok" style="margin-left:8px;">sent</span>
+      {% elif upload.status == 'failed' %}<span class="pill err" style="margin-left:8px;">failed</span>
+      {% else %}<span class="pill muted" style="margin-left:8px;">{{ upload.status or '—' }}</span>{% endif %}
+    </p>
+  </div>
+  <div class="topbar-actions" style="gap:10px;">
+    <a href="{{ url_for('files.download', upload_id=upload.id) }}" class="btn primary">
+      ↓ Re-télécharger le CSV
+    </a>
+    <a href="{{ url_for('files.index') }}" class="btn ghost">← Retour</a>
+  </div>
+</header>
+
+{# ───────────────── Métadonnées ───────────────── #}
+<section class="card mb-lg">
+  <div class="card-header">
+    <h2 class="card-title">Métadonnées</h2>
+  </div>
+
+  <div class="grid grid-2 gap-md">
+    <div>
+      <div class="field-label">Fichier archivé</div>
+      <div class="mono" style="word-break:break-all; font-size:12px;">{{ upload.archived_csv_path or '—' }}</div>
+    </div>
+    <div>
+      <div class="field-label">file_id Cortex</div>
+      <div class="mono">{{ upload.file_id_cortex or '—' }}</div>
+    </div>
+
+    <div>
+      <div class="field-label">Run source</div>
+      {% if upload.csv_run_id %}
+        <a href="{{ url_for('tweets.show_run', run_id=upload.csv_run_id) }}" class="text-burgundy" style="font-weight:500;">
+          Run #{{ upload.csv_run_id }}{% if upload.run_source_csv_name %} · {{ upload.run_source_csv_name }}{% endif %}
+        </a>
+      {% else %}
+        <span class="muted">—</span>
+      {% endif %}
+    </div>
+    <div>
+      <div class="field-label">Persona</div>
+      {% if upload.persona_first_name %}
+        <a href="{{ url_for('personas.detail', persona_id=upload.persona_id) }}" class="text-burgundy" style="font-weight:500;">
+          {{ upload.persona_first_name }} · Avatar {{ upload.persona_avatar }}
+        </a>
+      {% else %}
+        <span class="muted">—</span>
+      {% endif %}
+    </div>
+
+    <div>
+      <div class="field-label">Tweets éligibles (sortie du run)</div>
+      <div>{{ upload.eligible_count if upload.eligible_count is not none else '—' }}</div>
+    </div>
+    <div>
+      <div class="field-label">Validés par Cortex</div>
+      <div>
+        {{ upload.cortex_valid_tweets if upload.cortex_valid_tweets is not none else '—' }}
+        {% if upload.cortex_threads %} · <span class="dim">{{ upload.cortex_threads }} thread(s)</span>{% endif %}
+        {% if upload.cortex_warnings %} · <span class="dim">{{ upload.cortex_warnings }} warning(s)</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if upload.error_message %}
+  <div class="alert err mt-md">
+    <span class="dot err"></span>
+    <span><strong>Erreur Cortex :</strong> {{ upload.error_message }}</span>
+  </div>
+  {% endif %}
+</section>
+
+{# ───────────────── parse_summary détaillé ───────────────── #}
+{% if parse_summary %}
+<section class="card mb-lg">
+  <div class="card-header">
+    <h2 class="card-title">Réponse Cortex</h2>
+    <div class="card-sub">Payload retourné par <code>POST /api/v1/files</code>.</div>
+  </div>
+  <details>
+    <summary class="text-burgundy" style="cursor:pointer; font-weight:500;">Voir le JSON brut</summary>
+    <pre class="mono" style="margin-top:10px; padding:12px; background:var(--surface-sunk, #f7f5f1); border-radius:8px; font-size:11px; overflow:auto; max-height:400px;">{{ parse_summary | tojson(indent=2) }}</pre>
+  </details>
+</section>
+{% endif %}
+
+{# ───────────────── Aperçu CSV inline ───────────────── #}
+<section>
+  <div class="section-row">
+    <h2 class="section-title">Aperçu du CSV</h2>
+    {% if preview and not preview.error %}
+      <span class="section-meta">
+        {{ preview.shown_rows }} / {{ preview.total_rows }} ligne(s){% if preview.truncated %} · tronqué{% endif %}
+      </span>
+    {% endif %}
+  </div>
+
+  {% if preview.error %}
+    <div class="alert err">
+      <span class="dot err"></span>
+      <span>{{ preview.error }}</span>
+    </div>
+  {% elif not preview.headers %}
+    <div class="empty">
+      <div class="em-title">CSV vide.</div>
+    </div>
+  {% else %}
+    <div class="tbl-wrap" style="max-height:600px; overflow:auto;">
+      <table class="tbl" style="font-size:12px;">
+        <thead style="position:sticky; top:0; background:var(--surface, #fff); z-index:1;">
+          <tr>
+            <th class="num dim" style="width:50px;">#</th>
+            {% for h in preview.headers %}
+            <th>{{ h }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in preview.rows %}
+          <tr>
+            <td class="num dim mono">{{ loop.index }}</td>
+            {% for cell in row %}
+            <td style="vertical-align:top; max-width:380px; white-space:pre-wrap; word-break:break-word;">{{ cell }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if preview.truncated %}
+      <p class="field-help mt-sm">
+        Aperçu limité aux 50 premières lignes pour rester lisible. Utiliser <strong>Re-télécharger le CSV</strong> pour le contenu intégral.
+      </p>
+    {% endif %}
+  {% endif %}
+</section>
+
+{% endblock %}
