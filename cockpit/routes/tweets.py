@@ -251,12 +251,18 @@ def show_run(run_id: int):
         flash("Run introuvable.", "error")
         return redirect(url_for("tweets.index"))
 
+    # Mapping {id: name} des 11 avatars Compaatible — pour afficher "Avatar N — Le/La Name"
+    # à côté du Run # dans le header (rappel rapide du positionnement de la persona).
+    from brain import avatars_catalog
+    avatar_names = {a["id"]: a["name"] for a in avatars_catalog.get_avatars_brief()}
+
     # Tant que le pipeline tourne, on affiche la page "running" avec polling JS.
     if run.get("status") == "running":
         return render_template(
             "tweets_run_running.html",
             run=run,
             stages=run_state.STAGES,
+            avatar_names=avatar_names,
         )
 
     tweets = pipeline.get_tweets_for_run(run_id)
@@ -305,6 +311,7 @@ def show_run(run_id: int):
         health=health,
         dashboard=dashboard,
         cortex_configured=cortex_client.is_configured(),
+        avatar_names=avatar_names,
     )
 
 

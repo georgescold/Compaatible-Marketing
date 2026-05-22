@@ -7,7 +7,15 @@
 <header class="page-header">
   <div>
     <a href="{{ url_for('tweets.index') }}" class="text-xs muted" style="display:inline-block; margin-bottom:8px;">← Tous les runs</a>
-    <span class="eyebrow"><span class="live-dot"></span> Pipeline en cours · run #{{ run.id }}</span>
+    <span class="eyebrow">
+      <span class="live-dot"></span> Pipeline en cours · run #{{ run.id }}
+      {% if run.persona_avatar %}
+      · <span class="pill" title="Avatar primaire de la persona{% if run.persona_avatar_secondary %} (+ secondaire {{ run.persona_avatar_secondary }}){% endif %}"
+              style="font-size:11px; vertical-align:middle; margin-left:4px;">
+        Avatar {{ run.persona_avatar }}{% if avatar_names and avatar_names.get(run.persona_avatar) %} — {{ avatar_names[run.persona_avatar] }}{% endif %}
+      </span>
+      {% endif %}
+    </span>
     <h1>Le pipeline tourne</h1>
     <p class="sub">
       Source : <span class="ink" style="font-weight:500;">{{ run.source_csv_name }}</span>

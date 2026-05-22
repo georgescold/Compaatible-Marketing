@@ -1344,7 +1344,9 @@ def get_run(run_id: int) -> dict | None:
         cur.execute(
             """
             SELECT r.*, p.first_name AS persona_first_name, p.bio_twitter AS persona_bio,
-                   p.backstory AS persona_backstory, p.avatar_id_primary AS persona_avatar,
+                   p.backstory AS persona_backstory,
+                   p.avatar_id_primary AS persona_avatar,
+                   p.avatar_id_secondary AS persona_avatar_secondary,
                    p.voice_signature AS persona_voice
             FROM mkt_csv_runs r
             LEFT JOIN mkt_personas_emerged p ON r.persona_id = p.id

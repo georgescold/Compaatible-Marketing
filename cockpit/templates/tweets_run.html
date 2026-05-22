@@ -9,7 +9,16 @@
 <header class="page-header">
   <div>
     <a href="{{ url_for('tweets.index') }}" class="text-xs muted" style="display:inline-block; margin-bottom:8px; text-decoration:none;">← Tous les runs</a>
-    <h1>Run #{{ run.id }}</h1>
+    <h1>
+      Run #{{ run.id }}
+      {% if run.persona_avatar %}
+      <span class="pill" title="Avatar primaire de la persona{% if run.persona_avatar_secondary %} (+ secondaire {{ run.persona_avatar_secondary }}){% endif %}"
+            style="font-size:13px; font-weight:500; vertical-align:middle; margin-left:8px;">
+        Avatar {{ run.persona_avatar }}{% if avatar_names and avatar_names.get(run.persona_avatar) %} — {{ avatar_names[run.persona_avatar] }}{% endif %}
+        {% if run.persona_avatar_secondary %}<span class="muted text-xs" style="margin-left:4px;">+ {{ run.persona_avatar_secondary }}</span>{% endif %}
+      </span>
+      {% endif %}
+    </h1>
     <p class="sub">
       Source : <span class="ink" style="font-weight:500;">{{ run.source_csv_name }}</span>
       {% if run.source_handle %} · <span class="mono">@{{ run.source_handle }}</span>{% endif %}
