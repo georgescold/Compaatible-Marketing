@@ -966,7 +966,7 @@ def _sanitize_filename(raw: str | None, fallback: str) -> str:
     return cleaned[:200]
 
 
-def _build_cortex_csv(run_id: int) -> tuple[bytes, str, int] | None:
+def _build_cortex_csv(run_id: int) -> tuple[bytes, str, int, int | None] | None:
     """Construit le CSV Cortex pour un run. Retourne (csv_bytes, filename, eligible_count)
     ou None si run introuvable. Lève ValueError si aucun tweet éligible.
 
@@ -993,7 +993,7 @@ def _build_cortex_csv(run_id: int) -> tuple[bytes, str, int] | None:
 
     csv_text = cortex_validator.format_for_cortex(cortex_rows)
     filename = f"compaatible_run{run_id}_{run.get('persona_first_name', 'unknown')}.csv"
-    return csv_text.encode("utf-8"), filename, len(eligible)
+    return csv_text.encode("utf-8"), filename, len(eligible), run.get("persona_id")
 
 
 @bp.route("/runs/<int:run_id>/send-to-cortex", methods=["POST"])
@@ -1012,7 +1012,7 @@ def send_to_cortex(run_id: int):
         flash("Run introuvable.", "error")
         return redirect(url_for("tweets.index"))
 
-    csv_bytes, default_filename, eligible_count = result
+    csv_bytes, default_filename, eligible_count, persona_id = result
     filename = _sanitize_filename(request.form.get("filename"), default_filename)
 
     # Validation locale avant envoi : si fatal, on n'appelle pas Cortex (gain de quota + msg plus clair).
@@ -1039,8 +1039,6 @@ def send_to_cortex(run_id: int):
     archive_path = archive_dir / archive_filename
     archive_path.write_bytes(csv_bytes)
     archived_csv_path_str = str(archive_path)
-
-    persona_id = run.get("persona_id")
 
     try:
         payload = cortex_client.upload_csv(csv_bytes, filename)
