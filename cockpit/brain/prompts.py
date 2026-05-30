@@ -1164,17 +1164,75 @@ def build_system_for_manual_persona() -> list[dict[str, Any]]:
     ]
 
 
+# ─── Mode "sans pub" : bloc override quand compaatible_promo=False ──────────
+
+def build_no_promo_override_block() -> dict[str, Any]:
+    """Bloc système final, ajouté quand le run est lancé SANS pub Compaatible.
+
+    Il vient APRÈS les sections "Mention nominale Compaatible", "Sorties
+    possibles : CTA / lien blog" et "Pivot Compaatible" du prompt mission, et
+    les ANNULE explicitement. Placé en dernier pour peser le plus lourd (les
+    instructions tardives priment), il garantit côté modèle un corpus 100 %
+    incarnation de la persona, sans aucune trace produit. Un filet post-LLM
+    (`_enforce_no_compaatible` dans copywriter.py) retire de toute façon ce qui
+    passerait malgré tout.
+    """
+    return {
+        "type": "text",
+        "text": (
+            "## ⛔ OVERRIDE PRIORITAIRE — RUN SANS PUB COMPAATIBLE\n\n"
+            "**Ce bloc annule et remplace toutes les consignes précédentes qui "
+            "parlent de nommer Compaatible, de pivoter vers l'app, de placer un "
+            "CTA produit ou un lien blog `compaatible.com`.** Pour CE run, ces "
+            "consignes ne s'appliquent pas. Aucune cible de mention, aucun "
+            "plancher, aucun plafond : la cible est **zéro**.\n\n"
+            "### Interdictions absolues (zéro tolérance)\n"
+            "- ❌ Le mot **« Compaatible »** n'apparaît dans AUCUN tweet, nulle part "
+            "(ni T1, ni T2+, ni tweet isolé).\n"
+            "- ❌ Aucune URL **`compaatible.com`** ni aucun lien `/blog/...` — pas "
+            "de pivot blog du tout.\n"
+            "- ❌ Aucune **allusion au produit** même sans le nommer : pas de « une "
+            "app qui matche sur la personnalité », « un test de compatibilité », "
+            "« une méthode basée sur le Big Five / OCEAN », « l'appli que j'utilise », "
+            "« depuis que j'ai trouvé le bon outil », etc. Rien qui désigne, même "
+            "obliquement, une solution produit.\n"
+            "- ❌ Pas de CTA, pas de recommandation d'outil, pas de close commercial.\n\n"
+            "### Ce que tu produis à la place\n"
+            "La persona écrit **uniquement sa vie** : ses scènes vécues, ses "
+            "expériences, ses observations, ses confessions, ses thèses incarnées, "
+            "ses lucidités sur l'amour, le lien, elle-même. **Même voix, mêmes "
+            "formats, même doctrine de threads et de hooks, mêmes règles "
+            "typographiques** — on ne change QUE le fait qu'aucun tweet ne mène à "
+            "un produit. Un tweet qui, dans un run normal, aurait pivoté vers "
+            "Compaatible doit ici **rester sur sa propre chute** (leçon, image, "
+            "ouverture, silence) sans jamais désigner de solution.\n\n"
+            "### Champs structurés\n"
+            "- `integration_strategy` = **`none`** sur TOUS les tweets. Jamais "
+            "`direct_mention`, `natural_pivot`, `subtle_close` ni `blog_pivot`.\n"
+            "- Cohérence maximale avec le reste : le lecteur doit sentir la **même "
+            "personne** que dans le corpus existant, simplement en train de "
+            "raconter sa vie sans rien vendre.\n\n"
+            "**Test mental avant chaque tweet** : est-ce qu'un lecteur pourrait "
+            "deviner qu'il existe un produit derrière ? Si oui, réécris jusqu'à ce "
+            "que le tweet tienne entièrement par lui-même."
+        ),
+    }
+
+
 # ─── Stage extension : génération de tweets sans source (invention pure) ────
 
-def build_system_for_extension(language: str = "fr") -> list[dict[str, Any]]:
+def build_system_for_extension(language: str = "fr", compaatible_promo: bool = True) -> list[dict[str, Any]]:
     """Mission INVENTION PURE : générer N tweets originaux sans tweet source.
 
     Réutilise les mêmes blocs cachés que le copywriting (brief + avatars + techniques
     + catalogue blog). Différence : la mission demande de prolonger le corpus existant
     en imaginant ce que la persona posterait les prochains jours, en s'appuyant sur les
     mécanismes du playbook mais sans aucun tweet source à adapter.
+
+    compaatible_promo : False => ajoute un bloc override final qui interdit toute
+    mention/référence Compaatible (run "sans pub", pure incarnation de la voix).
     """
-    return [
+    blocks = [
         build_role_block(),
         *build_blocks_for_copywriting(language=language),
         {
@@ -1786,12 +1844,15 @@ def build_system_for_extension(language: str = "fr") -> list[dict[str, Any]]:
             ),
         },
     ]
+    if not compaatible_promo:
+        blocks.append(build_no_promo_override_block())
+    return blocks
 
 
 # ─── Stage 2 : Génération du corpus Compaatible ──────────────────────────────
 
-def build_system_for_copywriting(language: str = "fr") -> list[dict[str, Any]]:
-    return [
+def build_system_for_copywriting(language: str = "fr", compaatible_promo: bool = True) -> list[dict[str, Any]]:
+    blocks = [
         build_role_block(),
         *build_blocks_for_copywriting(language=language),
         {
@@ -2397,3 +2458,6 @@ def build_system_for_copywriting(language: str = "fr") -> list[dict[str, Any]]:
             ),
         },
     ]
+    if not compaatible_promo:
+        blocks.append(build_no_promo_override_block())
+    return blocks

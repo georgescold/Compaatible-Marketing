@@ -117,6 +117,10 @@ def upload_launch():
     model_analysis = (request.form.get("model_analysis") or "").strip() or None
     model_adaptation = (request.form.get("model_adaptation") or "").strip() or None
 
+    # Pub Compaatible : checkbox cochée par défaut. Décochée → run "sans pub"
+    # (aucune mention/référence, pure vie de la persona).
+    compaatible_promo = bool(request.form.get("compaatible_promo"))
+
     # Extension chaînée upfront (optionnelle)
     chain_extension = bool(request.form.get("chain_extension"))
     chain_count_raw = (request.form.get("chain_extension_count") or "").strip()
@@ -147,6 +151,7 @@ def upload_launch():
             source_csv_name=source_csv_name,
             max_source_tweets=max_tweets_int,
             override_models=override_models,
+            compaatible_promo=compaatible_promo,
         )
     except pipeline.PipelineError as e:
         traceback.print_exc(file=sys.stdout)
@@ -617,8 +622,10 @@ def full_run_launch(run_id: int):
     model_adaptation = (request.form.get("model_adaptation") or "").strip() or None
     model_analysis = (request.form.get("model_analysis") or "").strip() or None
     override_models = {"adaptation": model_adaptation, "analysis": model_analysis}
+    # Pub Compaatible : checkbox pré-cochée à la valeur du run parent dans le preflight.
+    compaatible_promo = bool(request.form.get("compaatible_promo"))
 
-    print(f"\n[full-run] Reprise depuis #{run_id} · skip top {skip_first_n} · persona '{parent_persona['first_name']}' · images={include_images} · models=adp:{model_adaptation}", flush=True)
+    print(f"\n[full-run] Reprise depuis #{run_id} · skip top {skip_first_n} · persona '{parent_persona['first_name']}' · images={include_images} · promo={compaatible_promo} · models=adp:{model_adaptation}", flush=True)
     try:
         prep = pipeline.prepare_run(
             file_bytes=csv_path.read_bytes(),
@@ -632,6 +639,7 @@ def full_run_launch(run_id: int):
             resume_persona_id=parent_persona_id,
             auto_match_images=include_images,
             override_models=override_models,
+            compaatible_promo=compaatible_promo,
         )
     except pipeline.PipelineError as e:
         flash(f"Erreur : {e}", "error")
@@ -756,8 +764,10 @@ def extend_launch(run_id: int):
     include_images = bool(request.form.get("include_images"))
     model_adaptation = (request.form.get("model_adaptation") or "").strip() or None
     override_models = {"adaptation": model_adaptation}
+    # Pub Compaatible : checkbox pré-cochée à la valeur du run parent. Décochée → extension sans pub.
+    compaatible_promo = bool(request.form.get("compaatible_promo"))
 
-    print(f"\n[extend] Lancement {count} tweets · parent #{run_id} · root #{root_run['id']} · persona '{persona['first_name']}' · images={include_images} · adp:{model_adaptation}", flush=True)
+    print(f"\n[extend] Lancement {count} tweets · parent #{run_id} · root #{root_run['id']} · persona '{persona['first_name']}' · images={include_images} · promo={compaatible_promo} · adp:{model_adaptation}", flush=True)
     try:
         prep = pipeline.prepare_extension_run(
             parent_run_id=run_id,
@@ -770,6 +780,7 @@ def extend_launch(run_id: int):
             detected_language=run.get("detected_language") or root_run.get("detected_language"),
             auto_match_images=include_images,
             override_models=override_models,
+            compaatible_promo=compaatible_promo,
         )
     except pipeline.PipelineError as e:
         flash(f"Erreur : {e}", "error")

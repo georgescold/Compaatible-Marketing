@@ -59,6 +59,7 @@ def prepare_run(
     resume_persona_id: int | None = None,
     auto_match_images: bool = False,
     override_models: dict | None = None,
+    compaatible_promo: bool = True,
 ) -> dict:
     """Étape synchrone rapide : sauvegarde le fichier, parse le CSV, applique la limite,
     crée la row mkt_csv_runs en status=running. Retourne {run_id, parsed, models}.
@@ -164,6 +165,7 @@ def prepare_run(
         archived_csv_path=str(archived_path),
         max_source_tweets=max_source_tweets,
         parent_run_id=parent_run_id,
+        compaatible_promo=compaatible_promo,
     )
 
     # Persiste le health check (warnings + stats) sur le run pour affichage UI
@@ -203,6 +205,7 @@ def prepare_run(
         "resume_persona_id": resume_persona_id,
         "parent_run_id": parent_run_id,
         "auto_match_images": auto_match_images,
+        "compaatible_promo": compaatible_promo,
     }
 
 
@@ -255,6 +258,7 @@ def _run_in_background(prep: dict) -> None:
             detected_language=run_row.get("detected_language"),
             auto_match_images=bool(prep.get("auto_match_images")),
             override_models={"adaptation": prep["models"].get("adaptation")},
+            compaatible_promo=prep.get("compaatible_promo", True),
         )
         _log(run_id, "copy", f"Extension chaînée · démarrage de {chain_count} tweets en invention pure")
         run_extension_pipeline(ext_prep)
@@ -358,6 +362,7 @@ def run_pipeline(prep: dict) -> dict:
             max_source_tweets=max_source_tweets,
             progress_run_id=run_id,
             start_chunk_idx=prep.get("start_chunk_idx", 0),
+            compaatible_promo=prep.get("compaatible_promo", True),
         )
         _merge_usage(total_usage, corpus["usage"])
 
@@ -472,8 +477,13 @@ def prepare_extension_run(
     detected_language: str | None = None,
     auto_match_images: bool = False,
     override_models: dict | None = None,
+    compaatible_promo: bool | None = None,
 ) -> dict:
     """Lance une extension sur le RUN PARENT (pas de nouveau run créé).
+
+    compaatible_promo : None => hérite du flag du run parent (cas par défaut).
+    Un booléen explicite force le mode pour cette extension uniquement (le runtime
+    le respecte ; le flag persisté sur la row parent reste inchangé).
 
     Les nouveaux tweets sont insérés avec `csv_run_id = parent_run_id` et un
     `extension_idx` qui indique le batch (1, 2, 3...). Ainsi le download CSV
@@ -503,6 +513,9 @@ def prepare_extension_run(
         raise PipelineError(f"Run parent #{parent_run_id} introuvable.")
     if parent.get("status") == "running":
         raise PipelineError(f"Run parent #{parent_run_id} est déjà en cours. Attends qu'il se termine.")
+
+    # Mode pub : explicite si fourni, sinon hérité du run parent.
+    effective_promo = parent.get("compaatible_promo", True) if compaatible_promo is None else compaatible_promo
 
     # Calculer next_extension_idx : MAX(extension_idx) sur les tweets du parent + 1
     with db.cursor() as cur:
@@ -538,6 +551,7 @@ def prepare_extension_run(
         "models": models,
         "source_handle": source_handle,
         "auto_match_images": auto_match_images,
+        "compaatible_promo": effective_promo,
     }
 
 
@@ -629,6 +643,7 @@ def run_extension_pipeline(prep: dict) -> dict:
             extension_idx=extension_idx,
             mention_stats=mention_stats,
             style_stats=style_stats,
+            compaatible_promo=prep.get("compaatible_promo", True),
         )
         _merge_usage(total_usage, corpus["usage"])
 
@@ -868,6 +883,7 @@ def run_manual_pipeline(prep: dict) -> dict:
             extension_idx=None,       # tweets = originaux de la persona
             mention_stats=mention_stats,
             style_stats=style_stats,
+            compaatible_promo=prep.get("compaatible_promo", True),
         )
         _merge_usage(total_usage, corpus["usage"])
 
@@ -1072,6 +1088,7 @@ def resume_paused_pipeline(run_id: int, override_models: dict | None = None) -> 
                 max_source_tweets=run.get("max_source_tweets"),
                 progress_run_id=run_id,
                 start_chunk_idx=start_chunk_idx,
+                compaatible_promo=run.get("compaatible_promo", True),
             )
         elif mode == "extension":
             # Reprise d'une extension : on récupère count + extension_idx depuis pause_state
@@ -1099,6 +1116,7 @@ def resume_paused_pipeline(run_id: int, override_models: dict | None = None) -> 
                 mention_stats=mention_stats,
                 style_stats=style_stats,
                 start_extra_done=resume_extra_done,
+                compaatible_promo=run.get("compaatible_promo", True),
             )
         else:
             raise PipelineError(f"Mode pause inconnu : {mode}")

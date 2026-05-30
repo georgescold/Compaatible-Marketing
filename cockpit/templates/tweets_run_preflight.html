@@ -121,6 +121,24 @@
     </div>
   </section>
 
+  {# ───── Pub Compaatible ───── #}
+  <section class="card">
+    <h3 class="card-title">Pub Compaatible</h3>
+    <label class="row gap-sm" style="cursor:pointer; align-items:flex-start;">
+      <input type="checkbox" name="compaatible_promo" value="1"
+             {% if parent_run.compaatible_promo %}checked{% endif %}
+             style="margin-top:3px; transform:scale(1.2);">
+      <span>
+        <strong>Inclure la pub Compaatible</strong> (mentions + références)
+        <div class="muted text-xs" style="margin-top:4px;">
+          Défaut repris du run parent ({% if parent_run.compaatible_promo %}avec pub{% else %}sans pub{% endif %}).
+          <strong>Coché</strong> : ~10-15&nbsp;% des tweets nomment Compaatible (T2+ d'un thread), pivots blog autorisés.
+          <strong>Décoché</strong> : zéro mention, zéro lien compaatible.com, zéro allusion produit — pure vie de la persona.
+        </div>
+      </span>
+    </label>
+  </section>
+
   {# ───── Option images ───── #}
   <section class="card">
     <h3 class="card-title">Images</h3>

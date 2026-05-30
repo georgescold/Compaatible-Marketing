@@ -390,6 +390,30 @@ def _split_into_thread(content: str, max_len: int = 280) -> list[str]:
 
 _BLOG_URL_RE = re.compile(r"https?://(?:www\.)?compaatible\.com/blog/([A-Za-z0-9_-]+)")
 
+# Mode "sans pub" : toute URL compaatible.com (blog ou non) est une reference
+# produit a retirer. Plus large que _BLOG_URL_RE (qui ne cible que /blog/<slug>).
+_COMPAATIBLE_URL_RE = re.compile(r"https?://(?:www\.)?compaatible\.com\S*", re.IGNORECASE)
+
+
+def _strip_compaatible_urls(content: str) -> tuple[str, int]:
+    """Retire toutes les URLs compaatible.com du contenu et nettoie autour.
+
+    Utilise uniquement en mode run "sans pub" (compaatible_promo=False) : on ne
+    veut AUCUNE reference produit, lien blog inclus. Retourne (texte, nb_retires).
+    Meme nettoyage typo que _validate_and_clean_blog_urls (espaces, ponctuation
+    orpheline) pour ne pas laisser de "a lire ici :" pendouillant.
+    """
+    if not content:
+        return content, 0
+    n = len(_COMPAATIBLE_URL_RE.findall(content))
+    if n == 0:
+        return content, 0
+    cleaned = _COMPAATIBLE_URL_RE.sub("", content)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(r"\s+([,.!?;:])", r"\1", cleaned)
+    cleaned = cleaned.strip(" ,;:")
+    return cleaned, n
+
 
 def _validate_and_clean_blog_urls(content: str, valid_slugs: set[str]) -> tuple[str, int]:
     """Vérifie que toutes les URLs `compaatible.com/blog/{slug}` du contenu utilisent un slug
@@ -528,6 +552,7 @@ def generate_corpus(
     max_source_tweets: int | None = None,
     progress_run_id: int | None = None,
     start_chunk_idx: int = 0,
+    compaatible_promo: bool = True,
 ) -> dict[str, Any]:
     """Génère un corpus complet de tweets Compaatible.
 
@@ -587,7 +612,8 @@ def generate_corpus(
         if progress_run_id is not None:
             run_state.update_message(progress_run_id, f"Chunk {human_idx}/{total_chunks} · appel API en cours sur {len(chunk)} tweets...", stage_key="copy")
         try:
-            chunk_tweets = _process_chunk(chunk, content_col, playbook, persona, model, human_idx, total_chunks)
+            chunk_tweets = _process_chunk(chunk, content_col, playbook, persona, model, human_idx, total_chunks,
+                                          compaatible_promo=compaatible_promo)
         except llm_client.LLMQuotaExhaustedError as e:
             # Quota journalier : inutile de continuer, tous les chunks suivants
             # vont taper le même mur. On bail-out avec ce qu'on a déjà inséré.
@@ -611,7 +637,8 @@ def generate_corpus(
         for k, v in chunk_tweets["usage"].items():
             total_usage[k] += v
         # Insert ce chunk en DB tout de suite (savepoint en cas de pause/crash)
-        n_ins = _insert_tweets_batch(chunk_tweets["tweets"], csv_run_id, persona_id)
+        n_ins = _insert_tweets_batch(chunk_tweets["tweets"], csv_run_id, persona_id,
+                                     compaatible_promo=compaatible_promo)
         inserted_total += n_ins
         _log(f"chunk {human_idx}/{total_chunks} OK · {len(chunk_tweets['tweets'])} tweets · {n_ins} inseres · {chunk_tweets['usage']['cached_tokens']} cached/{chunk_tweets['usage']['input_tokens']} in tokens · ${chunk_tweets['usage']['cost_usd_estimate']:.4f} ({time.time()-t0:.1f}s)")
         if progress_run_id is not None:
@@ -639,6 +666,7 @@ def generate_extension(
     mention_stats: dict | None = None,
     style_stats: dict | None = None,
     start_extra_done: int = 0,
+    compaatible_promo: bool = True,
 ) -> dict[str, Any]:
     """Génère `count` POSTS ATOMIQUES ORIGINAUX dans la voix de la persona.
 
@@ -710,8 +738,13 @@ def generate_extension(
     #   - observé < 10% → cible 10% (plancher doctrine)
     #   - observé > 15% → cible 15% (plafond doctrine)
     #   - sinon → cible = observé
+    # Run SANS pub : pas de budget mentions du tout (cible = zéro, géré par le
+    # prompt override + filet post-LLM). On laisse le target à None et on force
+    # mention_stats à None pour que _process_extension_chunk n'injecte rien.
     extension_mention_target_total: int | None = None
-    if mention_stats and mention_stats.get("ratio") is not None:
+    if not compaatible_promo:
+        mention_stats = None
+    if compaatible_promo and mention_stats and mention_stats.get("ratio") is not None:
         observed = mention_stats["ratio"]
         clamped = max(0.10, min(0.15, observed))
         extension_mention_target_total = max(0, round(target_messages * clamped))
@@ -762,6 +795,7 @@ def generate_extension(
                 style_stats=style_stats,
                 remaining_mention_budget=remaining_budget,
                 target_messages_total=target_messages,
+                compaatible_promo=compaatible_promo,
             )
         except llm_client.LLMQuotaExhaustedError as e:
             _log(f"extension chunk {human_idx}/{total_chunks} QUOTA · {e} · arret immediat de la boucle")
@@ -790,7 +824,8 @@ def generate_extension(
         already_generated.extend(chunk_tweets["tweets"])
         for k, v in chunk_tweets["usage"].items():
             total_usage[k] += v
-        n_ins = _insert_tweets_batch(chunk_tweets["tweets"], csv_run_id, persona_id, extension_idx=extension_idx)
+        n_ins = _insert_tweets_batch(chunk_tweets["tweets"], csv_run_id, persona_id, extension_idx=extension_idx,
+                                     compaatible_promo=compaatible_promo)
         inserted_total += n_ins
         _log(f"extension chunk {human_idx}/{total_chunks} OK · {len(chunk_tweets['tweets'])} tweets · {n_ins} inseres · ext_idx={extension_idx} · ${chunk_tweets['usage']['cost_usd_estimate']:.4f} ({time.time()-t0:.1f}s)")
         if progress_run_id is not None:
@@ -854,6 +889,7 @@ def generate_extension(
                 style_stats=style_stats,
                 remaining_mention_budget=extra_remaining_budget,
                 target_messages_total=target_messages,
+                compaatible_promo=compaatible_promo,
             )
         except llm_client.LLMQuotaExhaustedError as e:
             _log(f"extension top-up {extra_done} QUOTA · {e} · arret immediat de la boucle top-up")
@@ -877,7 +913,8 @@ def generate_extension(
         for k, v in extra_chunk["usage"].items():
             total_usage[k] += v
         n_ins_extra = _insert_tweets_batch(
-            extra_chunk["tweets"], csv_run_id, persona_id, extension_idx=extension_idx
+            extra_chunk["tweets"], csv_run_id, persona_id, extension_idx=extension_idx,
+            compaatible_promo=compaatible_promo,
         )
         inserted_total += n_ins_extra
         current_posts = _count_posts_for_extension(csv_run_id, extension_idx)
@@ -978,6 +1015,7 @@ def _process_extension_chunk(
     style_stats: dict | None = None,
     remaining_mention_budget: int | None = None,
     target_messages_total: int | None = None,
+    compaatible_promo: bool = True,
 ) -> dict:
     """Un chunk d'extension : on demande chunk_count tweets originaux, en partageant
     l'échantillon des tweets existants pour calibrer la voix + les tweets déjà générés
@@ -1113,7 +1151,20 @@ def _process_extension_chunk(
     # Aucun quota minimal, jamais. Le plafond global empêche la sur-mention que
     # produirait sinon le cumul des plafonds per-chunk (run 56 Thaïs : cumul à
     # 23% alors que ratio originaux 14%).
-    if mention_stats and mention_stats.get("ratio") is not None:
+    #
+    # Run SANS pub : on n'injecte aucune cible/plafond — la consigne devient une
+    # interdiction nette (renforcée par le bloc override système + filet post-LLM).
+    if not compaatible_promo:
+        mention_target_text = (
+            "\n\n## RUN SANS PUB COMPAATIBLE — interdiction nette\n\n"
+            "Aucune mention nominale « Compaatible », aucune URL compaatible.com (blog "
+            "inclus), aucune allusion au produit dans ce chunk. La persona raconte "
+            "uniquement sa vie, ses expériences, ses observations. "
+            "`integration_strategy=\"none\"` sur tous les tweets. Cohérence maximale "
+            "avec son corpus existant — on ne change QUE le fait qu'aucun tweet ne "
+            "mène à un produit. Voir le bloc OVERRIDE en fin de consigne système."
+        )
+    elif mention_stats and mention_stats.get("ratio") is not None:
         # Ratio observé sur les originaux, CLAMPÉ dans la fourchette doctrine [10%, 15%]
         # Le ratio brut peut être en dessous (persona qui sous-mentionne) ou au-dessus
         # (Thaïs qui dérive à 23%). On le ramène toujours dans le band 10-15.
@@ -1227,7 +1278,7 @@ def _process_extension_chunk(
     # pour que le LLM la voie comme la contrainte la plus saillante. La persona JSON
     # (backstory, avatars) reste en contexte mais sans la voix qui a été extraite.
     user_content = [voice_block, playbook_block, persona_block, existing_block, chunk_block]
-    sys_blocks = prompts.build_system_for_extension()
+    sys_blocks = prompts.build_system_for_extension(compaatible_promo=compaatible_promo)
     result = llm_client.call_messages(
         model=model,
         system_blocks=sys_blocks,
@@ -1277,7 +1328,8 @@ def _process_extension_chunk(
 
 
 def _process_chunk(chunk: list[dict], content_col: str, playbook: dict, persona: dict,
-                    model: str, chunk_idx: int, total_chunks: int) -> dict:
+                    model: str, chunk_idx: int, total_chunks: int,
+                    compaatible_promo: bool = True) -> dict:
     def shrink(row: dict) -> dict:
         return {
             "text": (row.get(content_col) or "").strip(),
@@ -1307,11 +1359,18 @@ def _process_chunk(chunk: list[dict], content_col: str, playbook: dict, persona:
             "Pour ce chunk, produis le JSON des tweets Compaatible. Tu peux générer plus, moins ou autant "
             "de tweets que de sources, selon ton jugement. Tu peux fusionner plusieurs sources en un thread. "
             "Tu peux créer des tweets purement originaux inspirés des mécanismes."
+            + (
+                ""
+                if compaatible_promo
+                else "\n\n**RUN SANS PUB** : aucun tweet de ce chunk ne nomme Compaatible, "
+                "ne contient d'URL compaatible.com, ni n'allusionne au produit. "
+                "`integration_strategy=\"none\"` partout. Pure vie de la persona."
+            )
         ),
     }
 
     user_content = [playbook_block, persona_block, chunk_block]
-    sys_blocks = prompts.build_system_for_copywriting()
+    sys_blocks = prompts.build_system_for_copywriting(compaatible_promo=compaatible_promo)
     result = llm_client.call_messages(
         model=model,
         system_blocks=sys_blocks,
@@ -1401,7 +1460,8 @@ def _parse_or_repair(result: dict, model: str, system_blocks: list, original_use
 
 
 def _insert_tweets_batch(tweets: list[dict], csv_run_id: int, persona_id: int,
-                          extension_idx: int | None = None) -> int:
+                          extension_idx: int | None = None,
+                          compaatible_promo: bool = True) -> int:
     """Insère les tweets en DB. Calcule thread_order pour les threads.
 
     Si un tweet dépasse 280 chars (l'IA s'est plantée malgré la consigne), il est
@@ -1599,30 +1659,52 @@ def _insert_tweets_batch(tweets: list[dict], csv_run_id: int, persona_id: int,
             f"last={img_stats['pattern_last']} · cleared={img_stats['pattern_none']})"
         )
 
-    # Régulation post-LLM de la mention "Compaatible" :
-    # - tweet isolé qui nomme Compaatible → drop
-    # - T1 d'un thread qui nomme Compaatible → drop thread entier
-    # - plafond 15% cumulé sur le run → drop des mentions T2+ excédentaires
-    #   (les mentions URL-only ne sont PAS comptées, cf _names_compaatible)
-    # Renumérote thread_order après les drops.
-    rows_to_insert, comp_stats = _enforce_compaatible_rules(rows_to_insert, csv_run_id=csv_run_id)
-    if comp_stats["dropped_isolated_mentions"]:
-        _log(
-            f"compaatible enforce · {comp_stats['dropped_isolated_mentions']} mention(s) "
-            "en tweet isolé retirée(s) (doctrine : T2+ uniquement)"
-        )
-    if comp_stats["dropped_t1_threads"]:
-        _log(
-            f"compaatible enforce · {comp_stats['dropped_t1_threads']} thread(s) entier(s) "
-            f"retiré(s) car T1 nommait Compaatible "
-            f"({comp_stats['dropped_t1_tweets']} tweet(s) au total)"
-        )
-    if comp_stats["dropped_excess_mentions"]:
-        _log(
-            f"compaatible enforce · {comp_stats['dropped_excess_mentions']} mention(s) "
-            f"T2+ retirée(s) pour respecter le plafond 15% cumulé "
-            f"(ratio cumulé {comp_stats['cumulative_ratio']*100:.1f}% sur {comp_stats['cumulative_total']} tweets du run)"
-        )
+    # Régulation post-LLM de la mention "Compaatible".
+    # Deux modes selon le flag du run :
+    if not compaatible_promo:
+        # Run "sans pub" : aucune mention ni URL compaatible.com tolérée.
+        rows_to_insert, noc_stats = _enforce_no_compaatible(rows_to_insert)
+        if noc_stats["urls_stripped"]:
+            _log(
+                f"no-promo enforce · {noc_stats['urls_stripped']} URL(s) compaatible.com "
+                "retirée(s) du contenu (run sans pub)"
+            )
+        if noc_stats["dropped_isolated"]:
+            _log(
+                f"no-promo enforce · {noc_stats['dropped_isolated']} tweet(s) isolé(s) "
+                "nommant Compaatible retiré(s) (run sans pub)"
+            )
+        if noc_stats["dropped_threads"]:
+            _log(
+                f"no-promo enforce · {noc_stats['dropped_threads']} thread(s) entier(s) "
+                f"retiré(s) car un maillon nommait Compaatible "
+                f"({noc_stats['dropped_thread_tweets']} tweet(s) au total · run sans pub)"
+            )
+    else:
+        # Run normal : doctrine plancher/plafond 10-15% en T2+.
+        # - tweet isolé qui nomme Compaatible → drop
+        # - T1 d'un thread qui nomme Compaatible → drop thread entier
+        # - plafond 15% cumulé sur le run → drop des mentions T2+ excédentaires
+        #   (les mentions URL-only ne sont PAS comptées, cf _names_compaatible)
+        # Renumérote thread_order après les drops.
+        rows_to_insert, comp_stats = _enforce_compaatible_rules(rows_to_insert, csv_run_id=csv_run_id)
+        if comp_stats["dropped_isolated_mentions"]:
+            _log(
+                f"compaatible enforce · {comp_stats['dropped_isolated_mentions']} mention(s) "
+                "en tweet isolé retirée(s) (doctrine : T2+ uniquement)"
+            )
+        if comp_stats["dropped_t1_threads"]:
+            _log(
+                f"compaatible enforce · {comp_stats['dropped_t1_threads']} thread(s) entier(s) "
+                f"retiré(s) car T1 nommait Compaatible "
+                f"({comp_stats['dropped_t1_tweets']} tweet(s) au total)"
+            )
+        if comp_stats["dropped_excess_mentions"]:
+            _log(
+                f"compaatible enforce · {comp_stats['dropped_excess_mentions']} mention(s) "
+                f"T2+ retirée(s) pour respecter le plafond 15% cumulé "
+                f"(ratio cumulé {comp_stats['cumulative_ratio']*100:.1f}% sur {comp_stats['cumulative_total']} tweets du run)"
+            )
 
     if not rows_to_insert:
         return 0
@@ -1667,8 +1749,10 @@ def _insert_tweets_batch(tweets: list[dict], csv_run_id: int, persona_id: int,
             "regle absolue violee, la persona ne doit jamais parler argent · A RELIRE/CORRIGER"
         )
 
-    # Audit de la regle "mention Compaatible >= 5% en T2+ d'un thread"
-    _audit_compaatible_mentions(rows_to_insert, csv_run_id=csv_run_id)
+    # Audit de la regle "mention Compaatible 10-15% en T2+ d'un thread".
+    # En mode sans pub, la cible est zéro : l'audit plancher n'a aucun sens, on le saute.
+    if compaatible_promo:
+        _audit_compaatible_mentions(rows_to_insert, csv_run_id=csv_run_id)
 
     return inserted
 
@@ -1901,6 +1985,74 @@ def _enforce_compaatible_rules(
         else 0.0
     )
     return after_step3, stats
+
+
+def _enforce_no_compaatible(rows: list[dict]) -> tuple[list[dict], dict]:
+    """Régulation post-LLM pour les runs lancés SANS pub Compaatible.
+
+    Garantie dure : aucun tweet inséré ne nomme Compaatible ni ne contient une
+    URL compaatible.com. Deux passes :
+
+    1. **Strip URLs** : retire toute URL `compaatible.com/...` du contenu de
+       chaque tweet (le tweet est conservé, juste nettoyé).
+    2. **Drop mentions nominales** : tout tweet qui nomme encore "Compaatible"
+       dans le texte (hors URL, déjà retirées) est supprimé. Si le tweet
+       appartient à un thread, **tout le thread** est retiré (un fil dont un
+       maillon pivote produit n'a plus de sens cohérent en mode sans pub).
+
+    Renumérote `thread_order` après retraits ; un thread tombé à 1 tweet devient
+    isolé (thread_key=None). Même mécanique que `_enforce_compaatible_rules`.
+
+    Retourne (rows filtrés, stats).
+    """
+    stats = {"urls_stripped": 0, "dropped_isolated": 0, "dropped_threads": 0, "dropped_thread_tweets": 0}
+    if not rows:
+        return rows, stats
+
+    # Passe 1 : strip des URLs compaatible.com sur chaque tweet
+    for r in rows:
+        cleaned, n = _strip_compaatible_urls(r.get("content") or "")
+        if n:
+            r["content"] = cleaned
+            r["char_count"] = len(cleaned)
+            stats["urls_stripped"] += n
+
+    # Passe 2 : identifier les tweets qui nomment encore Compaatible (hors URL)
+    def is_named(r: dict) -> bool:
+        return _names_compaatible(r.get("content"))
+
+    threads_to_drop = {
+        r.get("thread_key")
+        for r in rows
+        if is_named(r) and r.get("thread_key")
+    }
+    after = []
+    for r in rows:
+        tk = r.get("thread_key")
+        if tk and tk in threads_to_drop:
+            stats["dropped_thread_tweets"] += 1
+            continue
+        if not tk and is_named(r):
+            stats["dropped_isolated"] += 1
+            continue
+        after.append(r)
+    stats["dropped_threads"] = len(threads_to_drop)
+
+    # Renumérotation thread_order + dégradation des threads à 1 tweet en isolés
+    counters: dict[str, int] = {}
+    for r in after:
+        tk = r.get("thread_key")
+        if not tk:
+            continue
+        counters[tk] = counters.get(tk, 0) + 1
+        r["thread_order"] = counters[tk]
+    for r in after:
+        tk = r.get("thread_key")
+        if tk and counters.get(tk, 0) == 1:
+            r["thread_key"] = None
+            r["thread_order"] = None
+
+    return after, stats
 
 
 def _count_existing_mentions(csv_run_id: int) -> tuple[int, int]:

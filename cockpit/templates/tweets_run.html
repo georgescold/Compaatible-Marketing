@@ -26,6 +26,7 @@
       {% if run.max_source_tweets %} · <span class="pill">test sur {{ run.max_source_tweets }} tweets</span>{% endif %}
       {% if run.parent_run_id %} · <a href="{{ url_for('tweets.show_run', run_id=run.parent_run_id) }}" class="text-burgundy" style="font-weight:500;">← parent #{{ run.parent_run_id }}</a>{% endif %}
       {% if run.status %} · <span class="pill {% if run.status == 'completed' %}ok{% elif run.status == 'completed_partial' %}warn{% elif run.status == 'failed' %}err{% elif run.status == 'paused' %}warn{% else %}muted{% endif %}">{% if run.status == 'completed_partial' %}partial{% else %}{{ run.status }}{% endif %}</span>{% endif %}
+      · <span class="pill {% if run.compaatible_promo %}ok{% else %}warn{% endif %}" title="{% if run.compaatible_promo %}Doctrine mentions Compaatible active (~10-15%).{% else %}Run sans pub : aucune mention ni référence Compaatible, pure vie de la persona.{% endif %}">{% if run.compaatible_promo %}Pub : ON{% else %}Pub : OFF (sans pub){% endif %}</span>
     </p>
   </div>
 </header>

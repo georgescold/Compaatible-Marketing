@@ -51,6 +51,23 @@
     </div>
   </section>
 
+  {# ───── Pub Compaatible (mentions / références) ───── #}
+  <section class="card">
+    <h3 class="card-title">Pub Compaatible</h3>
+    <div class="card-sub" style="margin-bottom:14px;">
+      Décide si la persona parle de Compaatible dans ce run, ou si elle écrit uniquement sa vie quotidienne.
+    </div>
+    <label class="row gap-sm" style="cursor:pointer; align-items:flex-start; margin-bottom:6px;">
+      <input type="checkbox" name="compaatible_promo" id="compaatible_promo" value="1" checked
+             style="margin-top:3px; transform:scale(1.2);">
+      <span><strong>Inclure la pub Compaatible</strong> (mentions + références)</span>
+    </label>
+    <p class="field-help" style="margin-left:30px;">
+      <strong>Coché</strong> (défaut) : doctrine habituelle, ~10-15&nbsp;% des tweets nomment Compaatible (toujours en T2+ d'un thread), pivots blog autorisés.<br>
+      <strong>Décoché</strong> : run <em>sans pub</em>. Zéro mention « Compaatible », zéro lien compaatible.com, zéro allusion au produit. L'avatar raconte uniquement sa vie, ses expériences, ses observations, dans sa voix et ses formats habituels.
+    </p>
+  </section>
+
   {# ───── Extension automatique (pré-chaînée) ───── #}
   <section class="card">
     <h3 class="card-title">Prolonger automatiquement après le run initial</h3>
