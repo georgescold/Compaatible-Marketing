@@ -130,6 +130,47 @@ def bulk_delete():
     return jsonify(result)
 
 
+@bp.route("/delete-selection", methods=["POST"])
+def delete_selection():
+    """Supprime une sélection manuelle d'images. Body JSON: {filenames: [...]}.
+    Row DB + fichier disque + tweets déliés pour chaque image."""
+    data = request.get_json(silent=True) or {}
+    filenames = data.get("filenames") or []
+    if not isinstance(filenames, list):
+        return jsonify({"ok": False, "error": "filenames doit être une liste."}), 400
+    result = vision_indexer.delete_images_by_filenames(filenames)
+    if not result.get("ok"):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@bp.route("/delete-filtered", methods=["POST"])
+def delete_filtered():
+    """Supprime TOUTES les images correspondant aux filtres courants (toutes pages).
+    Body JSON: {fit:[...], avatar, emotion, ambiance, image_type, q}. Au moins un
+    filtre requis (garde-fou anti-wipe total)."""
+    data = request.get_json(silent=True) or {}
+    fit = data.get("fit") or None
+    if isinstance(fit, str):
+        fit = [fit] if fit.strip() else None
+    avatar = data.get("avatar")
+    try:
+        avatar = int(avatar) if avatar not in (None, "", []) else None
+    except (TypeError, ValueError):
+        avatar = None
+    result = vision_indexer.delete_images_by_filters(
+        fit=fit if fit else None,
+        avatar_id=avatar,
+        emotion=(data.get("emotion") or None),
+        ambiance=(data.get("ambiance") or None),
+        image_type=(data.get("image_type") or None),
+        search=(data.get("q") or None),
+    )
+    if not result.get("ok"):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
 @bp.route("/<path:filename>/index", methods=["POST"])
 def index_one(filename: str):
     settings = get_settings()

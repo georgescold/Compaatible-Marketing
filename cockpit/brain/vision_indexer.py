@@ -549,3 +549,144 @@ def delete_image(filename: str, delete_file: bool = True) -> dict:
         "tweets_unlinked": tweets_unlinked,
         "file_deleted": file_deleted,
     }
+
+
+def delete_images_by_filenames(filenames: list[str]) -> dict:
+    """Supprime en masse une LISTE explicite d'images (selection manuelle UI).
+
+    Pour chaque image : tweets delies (image_id via FK SET NULL + media_url /
+    image_chosen_at remis a NULL), row mkt_images supprimee, fichier disque
+    efface. Retourne {ok, deleted, tweets_unlinked, files_deleted, errors}.
+    """
+    clean: list[str] = []
+    seen: set[str] = set()
+    for fn in filenames or []:
+        fn = (fn or "").strip()
+        if not fn or "/" in fn or "\\" in fn or ".." in fn:
+            continue
+        if fn not in seen:
+            seen.add(fn)
+            clean.append(fn)
+    if not clean:
+        return {"ok": False, "error": "Aucun nom de fichier valide fourni."}
+
+    with db.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE mkt_tweets t
+               SET image_id = NULL, media_url = NULL, image_chosen_at = NULL
+              FROM mkt_images i
+             WHERE t.image_id = i.id
+               AND i.filename = ANY(%s)
+            """,
+            (clean,),
+        )
+        tweets_unlinked = cur.rowcount or 0
+        cur.execute(
+            "DELETE FROM mkt_images WHERE filename = ANY(%s) RETURNING filename",
+            (clean,),
+        )
+        deleted_rows = cur.fetchall()
+
+    files_deleted = 0
+    errors: list[str] = []
+    for r in deleted_rows:
+        fn = r["filename"]
+        path = Config.IMAGES_DIR / fn
+        try:
+            if path.exists():
+                path.unlink()
+                files_deleted += 1
+        except OSError as e:
+            errors.append(f"{fn}: {e}")
+
+    return {
+        "ok": True,
+        "deleted": len(deleted_rows),
+        "tweets_unlinked": tweets_unlinked,
+        "files_deleted": files_deleted,
+        "errors": errors,
+    }
+
+
+def delete_images_by_filters(
+    fit: list[str] | None = None,
+    avatar_id: int | None = None,
+    emotion: str | None = None,
+    ambiance: str | None = None,
+    image_type: str | None = None,
+    search: str | None = None,
+) -> dict:
+    """Supprime TOUTES les images correspondant aux filtres courants (toutes pages
+    confondues), pas seulement celles visibles a l'ecran.
+
+    Construit la meme clause WHERE que query_images pour que "supprimer tout ce
+    qui correspond" colle exactement a ce que l'utilisateur a filtre.
+
+    Garde-fou : refuse une suppression SANS aucun filtre (eviter un wipe total
+    accidentel du corpus). Pour tout vider, passer par un filtre explicite.
+    Retourne {ok, deleted, tweets_unlinked, files_deleted, errors}.
+    """
+    where = []
+    params: dict = {}
+    if fit:
+        where.append("compaatible_fit = ANY(%(fit)s)")
+        params["fit"] = fit
+    if avatar_id:
+        where.append("%(av)s = ANY(suggested_avatars)")
+        params["av"] = avatar_id
+    if emotion:
+        where.append("%(em)s = ANY(emotions)")
+        params["em"] = emotion
+    if ambiance:
+        where.append("%(am)s = ANY(ambiance)")
+        params["am"] = ambiance
+    if image_type:
+        where.append("image_type = %(it)s")
+        params["it"] = image_type
+    if search:
+        where.append("(description ILIKE %(q)s OR marketing_use ILIKE %(q)s OR filename ILIKE %(q)s)")
+        params["q"] = f"%{search}%"
+
+    if not where:
+        return {"ok": False, "error": "Suppression globale sans filtre refusee. Applique au moins un filtre (fit, avatar, recherche...)."}
+
+    where_sql = "WHERE " + " AND ".join(where)
+
+    with db.cursor() as cur:
+        cur.execute(
+            f"""
+            UPDATE mkt_tweets t
+               SET image_id = NULL, media_url = NULL, image_chosen_at = NULL
+              FROM mkt_images i
+             WHERE t.image_id = i.id
+               AND i.id IN (SELECT id FROM mkt_images {where_sql})
+            """,
+            params,
+        )
+        tweets_unlinked = cur.rowcount or 0
+        cur.execute(
+            f"DELETE FROM mkt_images {where_sql} RETURNING filename",
+            params,
+        )
+        deleted_rows = cur.fetchall()
+
+    files_deleted = 0
+    errors: list[str] = []
+    for r in deleted_rows:
+        fn = r["filename"]
+        path = Config.IMAGES_DIR / fn
+        try:
+            if path.exists():
+                path.unlink()
+                files_deleted += 1
+        except OSError as e:
+            errors.append(f"{fn}: {e}")
+
+    return {
+        "ok": True,
+        "deleted": len(deleted_rows),
+        "tweets_unlinked": tweets_unlinked,
+        "files_deleted": files_deleted,
+        "errors": errors,
+    }

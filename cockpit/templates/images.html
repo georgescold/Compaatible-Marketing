@@ -150,11 +150,24 @@
 
   <div>
     {% if images %}
-    <div class="gallery">
+    {# ───── Barre de selection multiple ───── #}
+    <div class="select-bar" id="select-bar">
+      <button type="button" class="btn ghost sm" id="toggle-select-mode" onclick="toggleSelectMode()">☑ Sélectionner</button>
+      <div id="select-actions" style="display:none; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span class="text-xs muted"><span id="sel-count">0</span> sélectionnée(s)</span>
+        <button type="button" class="btn ghost sm" onclick="selectAllVisible(true)">Tout cocher (page)</button>
+        <button type="button" class="btn ghost sm" onclick="selectAllVisible(false)">Tout décocher</button>
+        <button type="button" class="btn sm" style="color:var(--error);" id="del-selection-btn" onclick="deleteSelection()" disabled>🗑 Supprimer la sélection</button>
+        <button type="button" class="btn sm" style="color:var(--error);" onclick="deleteFiltered()" title="Supprime TOUTES les images correspondant aux filtres actuels, toutes pages confondues">🗑 Supprimer tout ({{ total }})</button>
+      </div>
+    </div>
+
+    <div class="gallery" id="gallery">
       {% for img in images %}
-      <div class="gallery-item fit-{{ img.compaatible_fit or 'unknown' }}" data-filename="{{ img.filename }}" onclick="openImageDetail('{{ img.filename }}')">
+      <div class="gallery-item fit-{{ img.compaatible_fit or 'unknown' }}" data-filename="{{ img.filename }}" onclick="onTileClick(event, '{{ img.filename }}')">
         <img src="{{ url_for('images.serve', filename=img.filename) }}" alt="" loading="lazy">
         <span class="fit-dot" title="fit: {{ img.compaatible_fit }}"></span>
+        <input type="checkbox" class="tile-check" onclick="event.stopPropagation(); onCheckChange();" aria-label="Sélectionner cette image">
         <button type="button" class="tile-delete" title="Supprimer cette image (DB + disque)"
                 onclick="event.stopPropagation(); deleteImageTile(this, '{{ img.filename }}')">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -253,9 +266,147 @@
   @media (hover: none) {
     .gallery-item .tile-delete { opacity: 0.85; }
   }
+
+  /* Barre de selection multiple */
+  .select-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  /* Checkbox de selection par tuile : cachee hors mode selection */
+  .gallery-item .tile-check {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    z-index: 4;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    display: none;
+    accent-color: var(--burgundy, #6a0f1a);
+  }
+  .gallery.select-mode .tile-check { display: block; }
+  /* En mode selection, la corbeille individuelle laisse la place aux cases */
+  .gallery.select-mode .tile-delete { display: none; }
+  .gallery-item.selected { outline: 3px solid var(--burgundy, #6a0f1a); outline-offset: -3px; }
 </style>
 
 <script>
+  // ───── Selection multiple ─────
+  let _selectMode = false;
+
+  function toggleSelectMode() {
+    _selectMode = !_selectMode;
+    const gallery = document.getElementById('gallery');
+    const actions = document.getElementById('select-actions');
+    const toggleBtn = document.getElementById('toggle-select-mode');
+    gallery.classList.toggle('select-mode', _selectMode);
+    actions.style.display = _selectMode ? 'flex' : 'none';
+    toggleBtn.textContent = _selectMode ? '✕ Quitter la sélection' : '☑ Sélectionner';
+    if (!_selectMode) selectAllVisible(false);
+  }
+
+  function onTileClick(event, filename) {
+    // En mode selection, un clic sur la tuile coche/decoche au lieu d'ouvrir le detail.
+    if (_selectMode) {
+      const tile = event.currentTarget;
+      const cb = tile.querySelector('.tile-check');
+      cb.checked = !cb.checked;
+      onCheckChange();
+      return;
+    }
+    openImageDetail(filename);
+  }
+
+  function onCheckChange() {
+    let n = 0;
+    document.querySelectorAll('.gallery-item').forEach(tile => {
+      const cb = tile.querySelector('.tile-check');
+      const on = cb && cb.checked;
+      tile.classList.toggle('selected', !!on);
+      if (on) n++;
+    });
+    document.getElementById('sel-count').textContent = n;
+    document.getElementById('del-selection-btn').disabled = (n === 0);
+  }
+
+  function selectAllVisible(state) {
+    document.querySelectorAll('.gallery-item .tile-check').forEach(cb => { cb.checked = state; });
+    onCheckChange();
+  }
+
+  function _selectedFilenames() {
+    const out = [];
+    document.querySelectorAll('.gallery-item').forEach(tile => {
+      const cb = tile.querySelector('.tile-check');
+      if (cb && cb.checked) out.push(tile.getAttribute('data-filename'));
+    });
+    return out;
+  }
+
+  async function deleteSelection() {
+    const files = _selectedFilenames();
+    if (!files.length) return;
+    if (!confirm(`Supprimer définitivement ${files.length} image(s) sélectionnée(s) ?\n\nRows DB + fichiers disque effacés, tweets déliés. Irréversible.`)) return;
+    const btn = document.getElementById('del-selection-btn');
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'Suppression…';
+    try {
+      const res = await fetch('/images/delete-selection', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({filenames: files}),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'erreur inconnue');
+      document.querySelectorAll('.gallery-item').forEach(tile => {
+        const cb = tile.querySelector('.tile-check');
+        if (cb && cb.checked) tile.remove();
+      });
+      onCheckChange();
+      flashToast(`${data.deleted} image(s) supprimée(s) · ${data.tweets_unlinked} tweet(s) déliés · ${data.files_deleted} fichier(s) effacé(s)`);
+    } catch (e) {
+      alert(`Suppression échouée : ${e.message}`);
+    } finally {
+      btn.textContent = original;
+      onCheckChange();
+    }
+  }
+
+  async function deleteFiltered() {
+    const params = new URLSearchParams(window.location.search);
+    const payload = {
+      fit: params.getAll('fit'),
+      avatar: params.get('avatar'),
+      emotion: params.get('emotion'),
+      ambiance: params.get('ambiance'),
+      image_type: params.get('image_type'),
+      q: params.get('q'),
+    };
+    const hasFilter = (payload.fit && payload.fit.length) || payload.avatar || payload.emotion || payload.ambiance || payload.image_type || payload.q;
+    if (!hasFilter) {
+      alert("Aucun filtre actif. Pour éviter une suppression totale accidentelle, applique au moins un filtre (fit, avatar, recherche…) avant de supprimer tout ce qui correspond.");
+      return;
+    }
+    if (!confirm(`Supprimer TOUTES les images correspondant aux filtres actuels ({{ total }} au total, toutes pages confondues) ?\n\nRows DB + fichiers disque effacés, tweets déliés. Irréversible.`)) return;
+    try {
+      const res = await fetch('/images/delete-filtered', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'erreur inconnue');
+      flashToast(`${data.deleted} image(s) supprimée(s) · ${data.tweets_unlinked} tweet(s) déliés · rechargement…`);
+      setTimeout(() => window.location.reload(), 900);
+    } catch (e) {
+      alert(`Suppression échouée : ${e.message}`);
+    }
+  }
+
   let _currentImageFilename = null;
 
   async function openImageDetail(filename) {
