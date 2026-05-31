@@ -345,6 +345,7 @@ def match_images_for_run(
     no_brief = 0
     floor_rejects = 0  # images recalees par le plancher de pertinence (audit)
     ai_used = 0
+    ai_skipped = 0  # tweets laisses SANS image car l'IA juge aucun ton compatible
 
     for idx, tw in enumerate(pending, start=1):
         brief = (tw.get("image_brief") or "").strip()
@@ -394,6 +395,15 @@ def match_images_for_run(
         if ai_assist and model:
             shortlist = [c[3] for c in scored[:5]]
             picked = _llm_rerank(tw, shortlist, model)
+            if picked == 0:
+                # Decision explicite du modele : aucune image emotionnellement
+                # compatible avec le tweet → on ne met PAS d'image (mieux pas
+                # d'image qu'une image au mauvais ton).
+                ai_skipped += 1
+                no_candidate += 1
+                _update_progress(run_id, processed=idx, no_candidate=no_candidate,
+                                 last_action=f"tweet #{tw['id']} : IA juge aucune image au bon ton emotionnel, pas d'image")
+                continue
             if picked is not None:
                 ai_used += 1
                 chosen = next((c for c in scored if c[3].get("id") == picked), chosen)
@@ -425,7 +435,7 @@ def match_images_for_run(
             ),
         )
 
-    _log_summary(run_id, matched, no_candidate, no_brief, floor_rejects, ai_used, ai_assist)
+    _log_summary(run_id, matched, no_candidate, no_brief, floor_rejects, ai_used, ai_skipped, ai_assist)
 
     result = {
         "matched": matched,
@@ -433,6 +443,7 @@ def match_images_for_run(
         "no_brief": no_brief,
         "floor_rejects": floor_rejects,
         "ai_reranked": ai_used,
+        "ai_skipped": ai_skipped,
         "pool_size": len(pool),
         "pending_total": len(pending),
     }
@@ -441,7 +452,7 @@ def match_images_for_run(
 
 
 def _log_summary(run_id: int, matched: int, no_candidate: int, no_brief: int,
-                 floor_rejects: int, ai_used: int, ai_assist: bool) -> None:
+                 floor_rejects: int, ai_used: int, ai_skipped: int, ai_assist: bool) -> None:
     """Log de fin de matching pour audit (variete + pertinence)."""
     import sys
     parts = [
@@ -450,16 +461,22 @@ def _log_summary(run_id: int, matched: int, no_candidate: int, no_brief: int,
     ]
     if ai_assist:
         parts.append(f"{ai_used} tranche(s) par IA")
+        parts.append(f"{ai_skipped} laisse(s) sans image (aucun ton emotionnel compatible)")
     print(" · ".join(parts), file=sys.stderr, flush=True)
 
 
 def _llm_rerank(tweet: dict, shortlist: list[dict], model: str) -> int | None:
     """Demande a un modele de choisir la meilleure image parmi un shortlist pour
-    un tweet donne. Retourne l'id image choisi, ou None (garder le choix algo).
+    un tweet donne, en pilotant le choix par l'EMOTION du tweet.
 
-    N'est appele que si ai_assist=True. Le modele recoit le contenu du tweet +
-    son image_brief + la description/tags de chaque candidat, et renvoie l'id
-    (ou 0 si aucune ne convient vraiment).
+    Convention de retour (3 cas distincts) :
+    - **id positif** : l'image a retenir (emotion compatible).
+    - **0** : le modele juge qu'AUCUNE candidate n'a une emotion compatible
+      → on ne met PAS d'image (decision explicite, a respecter).
+    - **None** : indecision/erreur (parse rate, id hallucine, exception) →
+      le caller garde le choix algorithmique de secours.
+
+    N'est appele que si ai_assist=True.
     """
     import json as _json
     import sys
@@ -522,7 +539,9 @@ def _llm_rerank(tweet: dict, shortlist: list[dict], model: str) -> int | None:
         valid_ids = {img.get("id") for img in shortlist}
         if picked in valid_ids:
             return picked
-        return None  # 0 ou id hors-shortlist → on garde le choix algo
+        if picked == 0:
+            return 0  # decision explicite : aucune emotion compatible → pas d'image
+        return None  # id hallucine hors-shortlist → on garde le choix algo
     except Exception as e:
         print(f"[match] _llm_rerank ECHEC ({type(e).__name__}: {e}) · fallback algo", file=sys.stderr, flush=True)
         return None
