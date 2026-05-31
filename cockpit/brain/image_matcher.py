@@ -478,16 +478,35 @@ def _llm_rerank(tweet: dict, shortlist: list[dict], model: str) -> int | None:
             f"setting: {', '.join(img.get('setting') or [])}"
         )
     sys_block = (
-        "Tu es un directeur artistique. On te donne un tweet (avec un brief image) "
-        "et une liste d'images candidates deja pre-filtrees. Choisis l'UNE qui "
-        "illustre le mieux le tweet — celle dont la scene, l'emotion et l'ambiance "
-        "collent vraiment au contenu. Si AUCUNE ne convient honnetement, renvoie 0. "
-        'Reponds UNIQUEMENT en JSON strict : {"image_id": <id ou 0>, "why": "<1 phrase>"}.'
+        "Tu es un directeur artistique. On te donne un tweet et une liste d'images "
+        "candidates deja pre-filtrees. Tu choisis l'image dont l'EMOTION colle a "
+        "celle du tweet.\n\n"
+        "METHODE OBLIGATOIRE, dans cet ordre :\n"
+        "1. Lis le tweet et identifie son EMOTION DOMINANTE et son registre "
+        "(ex : colere/indignation, tristesse/melancolie, joie/legerete, tendresse/"
+        "intimite, lucidite froide/serieux, peur/anxiete, nostalgie, ironie...). "
+        "Le sens reel du message prime sur les mots isoles.\n"
+        "2. ELIMINE d'abord toute image dont la charge emotionnelle CONTREDIT celle "
+        "du tweet. Regle absolue : un tweet de colere ou de tristesse ne recoit "
+        "JAMAIS une image joyeuse, souriante, ensoleillee ou legere — meme si la "
+        "scene, le decor ou les personnes correspondent. Une image au mauvais "
+        "registre emotionnel est pire que pas d'image du tout.\n"
+        "3. Parmi les images qui RESTENT (emotion compatible), choisis celle dont "
+        "la scene et l'ambiance servent le mieux le tweet.\n"
+        "4. Si AUCUNE image candidate n'a une emotion compatible avec le tweet, "
+        "renvoie 0 (on prefere ne pas illustrer plutot que mettre une image au "
+        "mauvais ton).\n\n"
+        "Le 'brief image' (s'il existe) est une aide secondaire : l'emotion reelle "
+        "du tweet prime toujours sur lui.\n\n"
+        'Reponds UNIQUEMENT en JSON strict : '
+        '{"tweet_emotion": "<emotion dominante du tweet>", "image_id": <id ou 0>, '
+        '"why": "<1 phrase : pourquoi l\'emotion de l\'image colle, ou 0 si aucune>"}.'
     )
     user_txt = (
-        f"## Tweet\n{(tweet.get('content') or '').strip()}\n\n"
-        f"## Brief image\n{(tweet.get('image_brief') or '').strip()}\n\n"
-        f"## Images candidates\n" + "\n".join(candidates_txt)
+        f"## Tweet (source de verite pour l'emotion)\n{(tweet.get('content') or '').strip()}\n\n"
+        f"## Brief image (aide secondaire)\n{(tweet.get('image_brief') or '').strip()}\n\n"
+        f"## Images candidates (chacune avec ses tags emotions/ambiance)\n"
+        + "\n".join(candidates_txt)
     )
     try:
         result = llm_client.call_messages(
