@@ -65,7 +65,8 @@ def save():
         fields["cortex_base_url"] = cortex_url.rstrip("/")
 
     # Modèles par tâche
-    for key in ("model_translation", "model_analysis", "model_adaptation", "model_vision"):
+    for key in ("model_translation", "model_analysis", "model_adaptation", "model_vision",
+                "model_image_association"):
         val = (request.form.get(key) or "").strip()
         if val:
             fields[key] = val

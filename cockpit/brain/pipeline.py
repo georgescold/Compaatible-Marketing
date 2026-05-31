@@ -753,6 +753,7 @@ def prepare_manual_run(
     count: int,
     model: str,
     auto_match_images: bool = False,
+    compaatible_promo: bool = True,
 ) -> dict:
     """Prépare un run pour une persona créée manuellement (sans CSV source).
 
@@ -797,6 +798,7 @@ def prepare_manual_run(
         playbook_json=json.dumps({}),
         current_stage="copy",
         parent_run_id=None,
+        compaatible_promo=compaatible_promo,
     )
 
     # State mémoire pour le polling UI : skip parse/analyze/persona
@@ -812,6 +814,7 @@ def prepare_manual_run(
         "persona_id": persona_id,
         "model": model,
         "auto_match_images": auto_match_images,
+        "compaatible_promo": compaatible_promo,
     }
 
 

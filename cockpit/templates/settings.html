@@ -328,7 +328,8 @@
           ('model_translation', 'Traduction (ES → FR, EN → FR, etc.)', 'Haiku 4.5 recommandé : rapide, peu cher, suffisant.'),
           ('model_analysis', 'Analyse et détection persona', 'Haiku 4.5 ou Sonnet 4.6 selon précision voulue. Gemini 3.1 Pro = bon compromis qualité/prix.'),
           ('model_adaptation', 'Adaptation copywriting (cœur du pipeline)', 'Sonnet 4.6 par défaut. Gemini 3.1 Pro ~25% moins cher. Opus 4.7 pour la qualité maximale (4x plus cher).'),
-          ('model_vision', 'Annotation images (Vision)', 'Haiku 4.5 ou Gemini 3.1 Flash Lite (150k req/jour, 85% moins cher) pour les gros batchs d\'indexation.'),
+          ('model_vision', 'Traitement des images (description / classification à l\'upload)', 'Haiku 4.5 ou Gemini 3.1 Flash Lite (150k req/jour, 85% moins cher) pour les gros batchs d\'indexation.'),
+          ('model_image_association', 'Association images ↔ tweets (matching assisté IA)', 'Utilisé uniquement quand tu coches « Matching assisté par IA » sur un run : l\'algo pré-sélectionne, ce modèle tranche. Haiku 4.5 suffit (choix parmi quelques candidats).'),
         ] %}
           <div class="field">
             <label class="field-label">{{ label }} <span class="live-price" data-for-field="{{ field }}"></span></label>

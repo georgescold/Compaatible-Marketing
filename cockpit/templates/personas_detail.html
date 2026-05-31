@@ -128,6 +128,33 @@
       </div>
     </div>
 
+    {# ── Mode de génération ── #}
+    <div class="field" style="margin-top:4px;">
+      <label class="field-label">Mode de génération</label>
+      <label class="row gap-sm" style="cursor:pointer; align-items:flex-start; margin-bottom:6px;">
+        <input type="radio" name="gen_mode" value="manual" checked style="margin-top:3px;">
+        <span><strong>Invention libre</strong> <span class="muted text-xs">— posts inventés dans la voix de la persona, sans CSV source.</span></span>
+      </label>
+      {% if root_run and root_run.playbook_json %}
+      <label class="row gap-sm" style="cursor:pointer; align-items:flex-start;">
+        <input type="radio" name="gen_mode" value="continue_csv" style="margin-top:3px;">
+        <span><strong>Suite logique du CSV d'origine</strong> <span class="muted text-xs">— continue le corpus du compte source (réutilise playbook + voix + ratios de la persona) pour une cohérence maximale. Les posts s'ajoutent au run racine #{{ root_run.id }} en extension.</span></span>
+      </label>
+      {% else %}
+      <p class="muted text-xs" style="margin:2px 0 0;">(Le mode « suite du CSV d'origine » apparaîtra si cette persona a un run racine avec playbook.)</p>
+      {% endif %}
+    </div>
+
+    {# ── Pub Compaatible ── #}
+    <div class="field">
+      <label class="row gap-sm" style="cursor:pointer; align-items:flex-start;">
+        <input type="checkbox" name="compaatible_promo" value="1" checked style="margin-top:3px;">
+        <span><strong>Inclure la pub Compaatible</strong> (mentions + références)
+          <span class="muted text-xs">— décoché : run sans pub (zéro mention « Compaatible », zéro lien compaatible.com, zéro allusion produit · pure vie de la persona).</span>
+        </span>
+      </label>
+    </div>
+
     <div class="gen-cost-card" id="gen-cost-card">
       <div class="cost-row">
         <div class="cost-label">Coût estimé pour ce run</div>

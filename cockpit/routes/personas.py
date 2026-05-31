@@ -363,6 +363,10 @@ def generate_for_persona(persona_id: int):
     count_raw = (request.form.get("count") or "").strip()
     model = (request.form.get("model") or "").strip()
     auto_match = bool(request.form.get("auto_match_images"))
+    compaatible_promo = bool(request.form.get("compaatible_promo"))
+    # Mode : "manual" (invention libre, playbook vide) ou "continue_csv" (suite
+    # logique du CSV d'origine = extension réutilisant playbook + voix + ratios).
+    mode = (request.form.get("gen_mode") or "manual").strip()
 
     try:
         count = int(count_raw)
@@ -378,12 +382,60 @@ def generate_for_persona(persona_id: int):
         flash("Modèle LLM requis.", "error")
         return redirect(url_for("personas.detail", persona_id=persona_id))
 
+    # ── Mode "suite logique du CSV d'origine" : on relance une EXTENSION sur le
+    # run racine de la persona, ce qui réutilise son playbook + sa voix + ses
+    # ratios mention/style → cohérence parfaite avec le corpus historique. ──
+    if mode == "continue_csv":
+        import json as _json
+        root_run = _pipeline.get_root_run_for_persona(persona_id)
+        if not root_run or not root_run.get("playbook_json"):
+            flash(
+                "Aucun CSV d'origine exploitable pour cette persona (pas de run racine "
+                "avec playbook). Utilise le mode invention libre.",
+                "error",
+            )
+            return redirect(url_for("personas.detail", persona_id=persona_id))
+        raw_pb = root_run["playbook_json"]
+        try:
+            playbook = raw_pb if isinstance(raw_pb, dict) else _json.loads(raw_pb)
+        except Exception:
+            flash("Playbook du run racine illisible. Utilise le mode invention libre.", "error")
+            return redirect(url_for("personas.detail", persona_id=persona_id))
+        try:
+            prep = _pipeline.prepare_extension_run(
+                parent_run_id=root_run["id"],
+                count=count,
+                playbook=playbook,
+                persona=persona,
+                persona_id=persona_id,
+                source_handle=root_run.get("source_handle"),
+                source_csv_name_parent=root_run.get("source_csv_name"),
+                detected_language=root_run.get("detected_language"),
+                auto_match_images=auto_match,
+                override_models={"adaptation": model},
+                compaatible_promo=compaatible_promo,
+            )
+        except Exception as e:
+            traceback.print_exc(file=sys.stdout)
+            flash(f"Erreur préparation extension : {type(e).__name__}: {e}", "error")
+            return redirect(url_for("personas.detail", persona_id=persona_id))
+        _pipeline.run_extension_async(prep)
+        flash(
+            f"Suite du CSV d'origine lancée sur {persona['first_name']} · {count} posts "
+            f"en continuité du corpus (run racine #{root_run['id']})"
+            f"{' · sans pub' if not compaatible_promo else ''}.",
+            "success",
+        )
+        return redirect(url_for("tweets.show_run", run_id=prep["run_id"]))
+
+    # ── Mode "invention libre" (défaut) : run manuel, playbook vide. ──
     try:
         prep = _pipeline.prepare_manual_run(
             persona_id=persona_id,
             count=count,
             model=model,
             auto_match_images=auto_match,
+            compaatible_promo=compaatible_promo,
         )
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
@@ -393,7 +445,8 @@ def generate_for_persona(persona_id: int):
     _pipeline.run_manual_async(prep)
 
     flash(
-        f"Run #{prep['run_id']} lancé sur {persona['first_name']} · {count} posts demandés.",
+        f"Run #{prep['run_id']} lancé sur {persona['first_name']} · {count} posts demandés"
+        f"{' · sans pub' if not compaatible_promo else ''}.",
         "success",
     )
     return redirect(url_for("tweets.show_run", run_id=prep["run_id"]))

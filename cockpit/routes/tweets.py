@@ -897,16 +897,25 @@ def match_images(run_id: int):
     # Nettoyage du snapshot precedent (sinon on garde l'ancien resultat ad vitam).
     image_matcher.cleanup_progress(run_id)
 
-    def _worker(rid: int):
+    # Matching assiste par IA (optionnel) : si la case est cochee cote UI, l'algo
+    # pre-selectionne un top N et le modele `model_image_association` tranche.
+    # Sinon (defaut), matching 100% algorithmique, aucun appel modele.
+    ai_assist = bool(request.form.get("ai_assist"))
+    assoc_model = None
+    if ai_assist:
+        from brain.db import get_settings
+        assoc_model = (get_settings().get("model_image_association") or "").strip() or None
+
+    def _worker(rid: int, use_ai: bool, mdl: str | None):
         try:
-            image_matcher.match_images_for_run(rid)
+            image_matcher.match_images_for_run(rid, ai_assist=use_ai, model=mdl)
         except Exception as e:
             print(f"[match] run #{rid} ECHEC : {type(e).__name__}: {e}", file=sys.stderr, flush=True)
             traceback.print_exc()
             image_matcher._finalize_progress(rid, error=f"{type(e).__name__}: {e}")
 
-    threading.Thread(target=_worker, args=(run_id,), daemon=True).start()
-    return jsonify({"ok": True, "started": True}), 202
+    threading.Thread(target=_worker, args=(run_id, ai_assist, assoc_model), daemon=True).start()
+    return jsonify({"ok": True, "started": True, "ai_assist": ai_assist}), 202
 
 
 @bp.route("/runs/<int:run_id>/match-images/status")

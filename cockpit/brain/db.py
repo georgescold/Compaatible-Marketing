@@ -53,6 +53,7 @@ def get_settings() -> dict:
         "model_analysis": "claude-haiku-4-5-20251001",
         "model_adaptation": "claude-sonnet-4-6",
         "model_vision": "claude-haiku-4-5-20251001",
+        "model_image_association": "claude-haiku-4-5-20251001",
     }
 
 

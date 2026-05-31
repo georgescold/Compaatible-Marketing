@@ -96,7 +96,7 @@
       <form method="post" action="{{ url_for('tweets.match_images', run_id=run.id) }}"
             data-confirm
             data-confirm-title="Intégrer les images ?"
-            data-confirm-body="Pour chaque tweet où l'IA a flaggé needs_image=true (champ interne), on cherche la meilleure image dans la base classifiée (fit Compaatible + URL publique) et on remplit media_url.\n\nAucun appel API externe, pur scoring SQL sur les tags."
+            data-confirm-body="Pour chaque tweet où l'IA a flaggé needs_image=true (champ interne), on cherche la meilleure image dans la base classifiée (fit Compaatible + URL publique) et on remplit media_url.\n\nPar défaut : scoring algorithmique, aucun appel API. Si « Matching assisté par IA » est coché : le modèle Association (paramètres) tranche parmi un top 5 par tweet, ce qui consomme des tokens."
             data-confirm-ok="Intégrer"
             data-async-progress="match-images"
             data-progress-status-url="{{ url_for('tweets.match_images_status', run_id=run.id) }}">
@@ -104,6 +104,10 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           Intégrer les images
         </button>
+        <label class="row gap-sm" style="cursor:pointer; align-items:center; font-size:13px; margin-top:6px;"
+               title="L'algo pré-sélectionne un top 5 par tweet, puis le modèle « Association » (paramètres) choisit la meilleure. Consomme des tokens.">
+          <input type="checkbox" name="ai_assist" value="1"> Matching assisté par IA <span class="muted text-xs">(optionnel · consomme des tokens)</span>
+        </label>
       </form>
     </div>
   </div>
@@ -563,8 +567,9 @@
       }
     });
 
-    // Lance le POST puis poll le status.
-    fetch(form.action, { method: 'POST', headers: { 'Accept': 'application/json' } })
+    // Lance le POST puis poll le status. On envoie le contenu du form (dont la
+    // case "Matching assisté par IA") pour que le backend lise ai_assist.
+    fetch(form.action, { method: 'POST', headers: { 'Accept': 'application/json' }, body: new FormData(form) })
       .then((res) => res.json().catch(() => ({})))
       .then((payload) => {
         if (!payload.ok) {
