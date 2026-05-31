@@ -874,6 +874,13 @@ def delete_run(run_id: int):
     elif also_persona and stats["persona_id"]:
         parts.append(f"persona « {stats['persona_first_name']} » conservée (d'autres runs la référencent)")
     flash(" · ".join(parts), "success")
+
+    # Redirection contextuelle : si la suppression a été lancée depuis une page
+    # persona (champ caché redirect_persona_id) et que la persona existe encore,
+    # on y retourne plutôt que vers la liste globale des runs.
+    redirect_pid = (request.form.get("redirect_persona_id") or "").strip()
+    if redirect_pid.isdigit() and not stats["persona_deleted"]:
+        return redirect(url_for("personas.detail", persona_id=int(redirect_pid)))
     return redirect(url_for("tweets.index"))
 
 

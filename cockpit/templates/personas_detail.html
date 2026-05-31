@@ -387,25 +387,29 @@
   </div>
 </section>
 
-{# ───────── Runs liés ───────── #}
+{# ───────── Runs & fichiers générés ───────── #}
 <section class="mb-lg">
   <div class="section-row">
-    <h2 class="section-title">Runs de cette persona</h2>
+    <h2 class="section-title">Runs &amp; fichiers générés</h2>
     {% if runs %}<span class="section-meta">{{ runs|length }} run(s)</span>{% endif %}
   </div>
+  <p class="muted text-xs" style="margin:-4px 0 12px;">
+    Chaque run généré pour cette persona. Ouvre-le pour relire/éditer ses tweets, télécharge son CSV
+    Cortex, ou supprime-le si tu n'en veux plus (les tweets du run sont effacés ; la persona reste).
+  </p>
 
   {% if runs %}
   <div class="tbl-wrap">
     <table class="tbl">
       <thead>
         <tr>
-          <th style="width:60px;">#</th>
+          <th style="width:50px;">#</th>
           <th>Source</th>
           <th>Status</th>
           <th class="num">Source → Output</th>
           <th class="num">Coût</th>
           <th>Date</th>
-          <th></th>
+          <th style="width:230px;">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -426,13 +430,43 @@
           <td class="num">{{ r.source_tweets_count or '?' }} → {{ r.output_tweets_count or '?' }}</td>
           <td class="num">{% if r.cost_usd %}${{ "%.3f"|format(r.cost_usd) }}{% else %}—{% endif %}</td>
           <td class="dim">{{ r.started_at.strftime('%Y-%m-%d %H:%M') if r.started_at else '' }}</td>
-          <td><a href="{{ url_for('tweets.show_run', run_id=r.id) }}" class="text-burgundy" style="font-weight:500;">Ouvrir →</a></td>
+          <td>
+            <div class="row gap-sm" style="align-items:center; flex-wrap:wrap;">
+              <a href="{{ url_for('tweets.show_run', run_id=r.id) }}" class="text-burgundy" style="font-weight:500;">Ouvrir</a>
+              {% if r.output_tweets_count and r.output_tweets_count > 0 %}
+              <a href="{{ url_for('tweets.download', run_id=r.id) }}" class="text-burgundy" title="Télécharger le CSV Cortex de ce run">CSV</a>
+              {% endif %}
+              <form method="post" action="{{ url_for('tweets.delete_run', run_id=r.id) }}" style="display:inline; margin:0;"
+                    onsubmit="return confirm('Supprimer le run #{{ r.id }} et ses {{ r.output_tweets_count or 0 }} tweet(s) ?\n\nLa persona « {{ persona.first_name }} » est conservée. Action irréversible.');">
+                <input type="hidden" name="redirect_persona_id" value="{{ persona.id }}">
+                <button type="submit" class="link-danger" title="Supprimer ce run et ses tweets">Supprimer</button>
+              </form>
+            </div>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% else %}
+  <div class="card" style="text-align:center; padding:24px;">
+    <p class="muted" style="margin:0;">Aucun run généré pour cette persona pour l'instant.</p>
+    <p class="muted text-xs" style="margin:6px 0 0;">Utilise « Générer un run de tweets » ci-dessus pour en créer un.</p>
+  </div>
   {% endif %}
+
+  <style>
+    .link-danger {
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      font-weight: 500;
+      color: #b3261e;
+      cursor: pointer;
+    }
+    .link-danger:hover { text-decoration: underline; }
+  </style>
 </section>
 
 {# ───────── Danger : suppression complète ───────── #}
