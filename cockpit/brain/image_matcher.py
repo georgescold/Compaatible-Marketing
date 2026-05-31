@@ -346,6 +346,9 @@ def match_images_for_run(
     floor_rejects = 0  # images recalees par le plancher de pertinence (audit)
     ai_used = 0
     ai_skipped = 0  # tweets laisses SANS image car l'IA juge aucun ton compatible
+    # Consommation cumulee des appels IA de re-rank (matching assiste). Ajoutee
+    # au cout du run en fin de matching pour que le cout final l'inclue.
+    ai_usage = {"input_tokens": 0, "cached_tokens": 0, "output_tokens": 0, "cost_usd_estimate": 0.0}
 
     for idx, tw in enumerate(pending, start=1):
         brief = (tw.get("image_brief") or "").strip()
@@ -394,7 +397,9 @@ def match_images_for_run(
         # Re-rank IA optionnel : l'algo propose un top-N, le modele tranche.
         if ai_assist and model:
             shortlist = [c[3] for c in scored[:5]]
-            picked = _llm_rerank(tw, shortlist, model)
+            picked, call_usage = _llm_rerank(tw, shortlist, model)
+            for k in ai_usage:
+                ai_usage[k] += call_usage.get(k, 0) or 0
             if picked == 0:
                 # Decision explicite du modele : aucune image emotionnellement
                 # compatible avec le tweet → on ne met PAS d'image (mieux pas
@@ -435,6 +440,43 @@ def match_images_for_run(
             ),
         )
 
+    # Cout du matching assiste IA : on l'AJOUTE (additif) au cout du run en DB,
+    # pour que le cout final affiche inclue generation + matching IA. Le matching
+    # tourne dans un thread separe apres le pipeline, donc ce cout n'est couvert
+    # par aucune autre etape. Sans ai_assist, ai_usage reste a 0 → no-op.
+    ai_cost = float(ai_usage.get("cost_usd_estimate") or 0.0)
+    if ai_cost > 0 or ai_usage.get("output_tokens"):
+        try:
+            with db.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE mkt_csv_runs
+                       SET cost_usd     = COALESCE(cost_usd, 0) + %s,
+                           input_tokens = COALESCE(input_tokens, 0) + %s,
+                           cached_tokens = COALESCE(cached_tokens, 0) + %s,
+                           output_tokens = COALESCE(output_tokens, 0) + %s
+                     WHERE id = %s
+                    """,
+                    (
+                        ai_cost,
+                        int(ai_usage.get("input_tokens") or 0),
+                        int(ai_usage.get("cached_tokens") or 0),
+                        int(ai_usage.get("output_tokens") or 0),
+                        run_id,
+                    ),
+                )
+            import sys
+            print(
+                f"[match] run #{run_id} · cout matching IA +${ai_cost:.4f} "
+                f"({ai_used} appel(s) · {int(ai_usage.get('output_tokens') or 0)} out tokens) "
+                f"ajoute au cout du run",
+                file=sys.stderr, flush=True,
+            )
+        except Exception as e:
+            import sys
+            print(f"[match] run #{run_id} · MAJ cout IA echouee ({type(e).__name__}: {e})",
+                  file=sys.stderr, flush=True)
+
     _log_summary(run_id, matched, no_candidate, no_brief, floor_rejects, ai_used, ai_skipped, ai_assist)
 
     result = {
@@ -444,6 +486,7 @@ def match_images_for_run(
         "floor_rejects": floor_rejects,
         "ai_reranked": ai_used,
         "ai_skipped": ai_skipped,
+        "ai_cost_usd": round(ai_cost, 4),
         "pool_size": len(pool),
         "pending_total": len(pending),
     }
@@ -465,25 +508,28 @@ def _log_summary(run_id: int, matched: int, no_candidate: int, no_brief: int,
     print(" · ".join(parts), file=sys.stderr, flush=True)
 
 
-def _llm_rerank(tweet: dict, shortlist: list[dict], model: str) -> int | None:
+def _llm_rerank(tweet: dict, shortlist: list[dict], model: str) -> tuple[int | None, dict]:
     """Demande a un modele de choisir la meilleure image parmi un shortlist pour
     un tweet donne, en pilotant le choix par l'EMOTION du tweet.
 
-    Convention de retour (3 cas distincts) :
+    Retourne **(picked, usage)** ou usage est le dict de consommation de l'appel
+    (input/output tokens + cost_usd_estimate), {} si aucun appel n'a eu lieu.
+    `picked` suit 3 cas distincts :
     - **id positif** : l'image a retenir (emotion compatible).
     - **0** : le modele juge qu'AUCUNE candidate n'a une emotion compatible
       → on ne met PAS d'image (decision explicite, a respecter).
     - **None** : indecision/erreur (parse rate, id hallucine, exception) →
       le caller garde le choix algorithmique de secours.
 
-    N'est appele que si ai_assist=True.
+    N'est appele que si ai_assist=True. Le `usage` est remonte au caller pour que
+    le cout du matching assiste IA entre dans le cout final du run.
     """
     import json as _json
     import sys
     from brain import llm_client
 
     if not shortlist:
-        return None
+        return None, {}
 
     candidates_txt = []
     for img in shortlist:
@@ -533,18 +579,24 @@ def _llm_rerank(tweet: dict, shortlist: list[dict], model: str) -> int | None:
             max_tokens=256,
             temperature=0.2,
         )
+        usage = result.get("usage") or {}
         from brain.source_analyzer import parse_json_response
         parsed = parse_json_response(result["text"])
         picked = int(parsed.get("image_id") or 0)
         valid_ids = {img.get("id") for img in shortlist}
         if picked in valid_ids:
-            return picked
+            return picked, usage
         if picked == 0:
-            return 0  # decision explicite : aucune emotion compatible → pas d'image
-        return None  # id hallucine hors-shortlist → on garde le choix algo
+            return 0, usage  # decision explicite : aucune emotion compatible → pas d'image
+        return None, usage  # id hallucine hors-shortlist → on garde le choix algo
     except Exception as e:
+        usage = {}
+        try:
+            usage = result.get("usage") or {}  # type: ignore[name-defined]
+        except Exception:
+            pass
         print(f"[match] _llm_rerank ECHEC ({type(e).__name__}: {e}) · fallback algo", file=sys.stderr, flush=True)
-        return None
+        return None, usage
 
 
 def stats_for_run(run_id: int) -> dict[str, Any]:
