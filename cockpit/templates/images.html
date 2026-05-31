@@ -152,9 +152,13 @@
     {% if images %}
     <div class="gallery">
       {% for img in images %}
-      <div class="gallery-item fit-{{ img.compaatible_fit or 'unknown' }}" onclick="openImageDetail('{{ img.filename }}')">
+      <div class="gallery-item fit-{{ img.compaatible_fit or 'unknown' }}" data-filename="{{ img.filename }}" onclick="openImageDetail('{{ img.filename }}')">
         <img src="{{ url_for('images.serve', filename=img.filename) }}" alt="" loading="lazy">
         <span class="fit-dot" title="fit: {{ img.compaatible_fit }}"></span>
+        <button type="button" class="tile-delete" title="Supprimer cette image (DB + disque)"
+                onclick="event.stopPropagation(); deleteImageTile(this, '{{ img.filename }}')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
         <div class="overlay">
           <div>{{ img.image_type or '?' }} · {{ img.subject_type or '?' }}</div>
           {% if img.suggested_avatars %}
@@ -220,6 +224,37 @@
   </div>
 </div>
 
+<style>
+  /* Corbeille en overlay sur chaque tuile de la galerie */
+  .gallery-item { position: relative; }
+  .gallery-item .tile-delete {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: rgba(20, 20, 20, 0.55);
+    color: #fff;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s ease, background 0.12s ease;
+  }
+  .gallery-item:hover .tile-delete { opacity: 1; }
+  .gallery-item .tile-delete:hover { background: var(--error, #b22234); }
+  .gallery-item .tile-delete:disabled { cursor: wait; opacity: 0.6; }
+  /* Toujours visible sur écrans tactiles (pas de hover) */
+  @media (hover: none) {
+    .gallery-item .tile-delete { opacity: 0.85; }
+  }
+</style>
+
 <script>
   let _currentImageFilename = null;
 
@@ -245,6 +280,24 @@
   function closeImageDetail() {
     document.getElementById('image-detail-modal').classList.remove('is-open');
     _currentImageFilename = null;
+  }
+
+  async function deleteImageTile(btn, filename) {
+    if (!confirm(`Supprimer définitivement ${filename} ?\n\nLa row mkt_images sera supprimée, le fichier disque effacé, et les tweets qui pointaient sur cette image verront leur media_url remis à null. Irréversible.`)) return;
+    const tile = btn.closest('.gallery-item');
+    btn.disabled = true;
+    if (tile) tile.style.opacity = '0.4';
+    try {
+      const res = await fetch(`/images/${encodeURIComponent(filename)}/delete`, {method: 'POST'});
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'erreur inconnue');
+      if (tile) tile.remove();
+      flashToast(`Image supprimée · ${data.tweets_unlinked} tweet(s) déliés · fichier ${data.file_deleted ? 'effacé' : 'non trouvé'}`);
+    } catch (e) {
+      alert(`Suppression échouée : ${e.message}`);
+      btn.disabled = false;
+      if (tile) tile.style.opacity = '';
+    }
   }
 
   async function deleteCurrentImage() {
